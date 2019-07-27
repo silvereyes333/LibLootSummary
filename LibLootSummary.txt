@@ -1,10 +1,10 @@
 ## Title: LibLootSummary
 ## Author: silvereyes
 ## Description: A library to assist with printing lists of items to the chat window.
-## Version: 1.0.0
-## AddOnVersion: 10000
+## Version: 1.0.1
+## AddOnVersion: 10001
 ## IsLibrary: true
-## APIVersion: 100026 100027
+## APIVersion: 100027 100028
 
 ## This Add-On is not created by, affiliated with or sponsored by ZeniMax Media Inc. or its affiliates. 
 ## The Elder Scrolls® and related logos are registered trademarks or trademarks of ZeniMax Media Inc. in the 

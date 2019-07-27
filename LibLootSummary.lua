@@ -2,7 +2,7 @@
 -- Distributed under the MIT license (see LICENSE.txt)          --
 ------------------------------------------------------------------
 
-LibLootSummary = {}
+LibLootSummary = { version = "1.0.1" }
 local lls = LibLootSummary
 local lootList = {}
 local currencyList = {}

@@ -2,130 +2,71 @@
 -- Distributed under the MIT license (see LICENSE.txt)          --
 ------------------------------------------------------------------
 
-LibLootSummary = { version = "1.0.1" }
+LibLootSummary = { version = "1.1.1" }
 local lls = LibLootSummary
-local lootList = {}
-local currencyList = {}
-local prefix = ""
-local suffix = ""
-local delimiter = " "
-local linkStyle = LINK_STYLE_DEFAULT
-local linkFormat = "|H%s:item:%s:1:1:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0|h|h"
-local combineDuplicates = true
-local function AddQuantity(list, key, quantity)
-    if list[key] then
-        if combineDuplicates then
-            list[key][1] = list[key][1] + quantity
-        else
-            table.insert(list[key], quantity)
-        end
-    else
-        list[key] = { [1] = quantity }
-    end
-end
-function lls:AddCurrency(currencyType, quantity)
-    AddQuantity(currencyList, currencyType, quantity)
-end
-function lls:AddItem(bagId, slotIndex, quantity)
-    local itemLink = GetItemLink(bagId, slotIndex, linkStyle)
-    if not quantity then
-        local stackSize, maxStackSize = GetSlotStackSize(bagId, slotIndex)
-        quantity = math.min(stackSize, maxStackSize)
-    end
-    self:AddItemLink(itemLink, quantity, true)
-end
-function lls:AddItemId(itemId, quantity)
-    local itemLink = string.format(linkFormat, linkStyle, itemId)
-    self:AddItemLink(itemLink, quantity, true)
-end
-function lls:AddItemLink(itemLink, quantity, dontChangeStyle)
+local lists = {}
+local globalList, getListByScope
 
-    if not dontChangeStyle then
-        itemLink = string.gsub(itemLink, "|H[0-1]:", "|H"..tostring(linkStyle)..":")
-    end
-    
-    AddQuantity(lootList, itemLink, quantity)
+function lls:AddCurrency(currencyType, quantity, scope)
+    getListByScope(scope):AddCurrency(currencyType, quantity)
 end
-local function appendText(text, currentText, maxLength, lines)
-    local newLine
-    if string.len(currentText) + string.len(delimiter) + string.len(text) > maxLength then
-        table.insert(lines, currentText)
-        currentText = ""
-    elseif string.len(currentText) > string.len(prefix) then
-        currentText = currentText .. delimiter
-    end
-    currentText = currentText .. text
-    return currentText
+
+function lls:AddItem(bagId, slotIndex, quantity, scope)
+    getListByScope(scope):AddItem(bagId, slotIndex, quantity)
+end
+
+function lls:AddItemId(itemId, quantity, scope)
+    getListByScope(scope):AddItemId(itemId, quantity)
+end
+
+function lls:AddItemLink(itemLink, quantity, dontChangeStyle, scope)
+    getListByScope(scope):AddItemLink(itemLink, quantity, dontChangeStyle)
+end
+
+--[[ Shortcut to creating a new LibLootSumary.List instance ]]--
+function lls:New()
+    return lls.List:New()
 end
 
 --[[ Outputs a verbose summary of all loot and currency ]]
-function lls:Print()
+function lls:Print(scope)
+    getListByScope(scope):Print()
+end
 
-    local summary = ""
-    local maxLength = MAX_TEXT_CHAT_INPUT_CHARACTERS - string.len(prefix) - string.len(suffix)
-    
-    -- Add items summary
-    local lines = {}
-    for itemLink, quantities in pairs(lootList) do
-        for _, quantity in ipairs(quantities) do
-            local countString = zo_strformat(GetString(SI_HOOK_POINT_STORE_REPAIR_KIT_COUNT), quantity)
-            local itemString = zo_strformat("<<1>> <<2>>", itemLink, countString)
-            summary = appendText(itemString, summary, maxLength, lines)
+function lls:Reset(scope)
+    getListByScope(scope):Reset()
+end
+
+function lls:SetCombineDuplicates(newCombineDuplicates, scope)
+    getListByScope(scope):SetCombineDuplicates(newCombineDuplicates)
+end
+
+function lls:SetDelimiter(newDelimiter, scope)
+    getListByScope(scope):SetDelimiter(newDelimiter)
+end
+
+function lls:SetLinkStyle(newLinkStyle, scope)
+    getListByScope(scope):SetLinkStyle(newLinkStyle)
+end
+
+function lls:SetPrefix(newPrefix, scope)
+    getListByScope(scope):SetPrefix(newPrefix)
+end
+
+function lls:SetSuffix(newSuffix, scope)
+    getListByScope(scope):SetSuffix(newSuffix)
+end
+
+function getListByScope(scope)
+    if scope == nil then
+        if not globalList then
+            globalList = lls.List:New()
         end
+        return globalList
     end
-    
-    -- Add money summary
-    for currencyType, quantities in pairs(currencyList) do
-        for _, quantity in ipairs(quantities) do
-            local moneyString = zo_strformat("<<1>>", 
-                                            ZO_CurrencyControl_FormatCurrencyAndAppendIcon(
-                                                quantity, true, currencyType, IsInGamepadPreferredMode()))
-            summary = appendText(moneyString, summary, maxLength, lines)
-        end
+    local list = lists[scope]
+    if not list then
+        lists[scope] = lls.List:New()
     end
-    
-    -- Append last line
-    if string.len(summary) > string.len(prefix) then
-        table.insert(lines, summary)
-    end
-    
-    -- Print to chat
-    for _, line in ipairs(lines) do
-        d(prefix .. line .. suffix)
-    end
-    
-    self:Reset()
-end
-
-function lls:Reset()
-    -- Reset lists
-    lootList = {}
-    currencyList = {}
-    
-    -- Reset options
-    prefix = ""
-    suffix = ""
-    delimiter = " "
-    linkStyle = LINK_STYLE_DEFAULT
-    combineDuplicates = true
-end
-
-function lls:SetCombineDuplicates(newCombineDuplicates)
-    combineDuplicates = newCombineDuplicates
-end
-
-function lls:SetDelimiter(newDelimiter)
-    delimiter = newDelimiter
-end
-
-function lls:SetLinkStyle(newLinkStyle)
-    linkStyle = newLinkStyle
-end
-
-function lls:SetPrefix(newPrefix)
-    prefix = newPrefix
-end
-
-function lls:SetSuffix(newSuffix)
-    suffix = newSuffix
+    return lists[scope]
 end

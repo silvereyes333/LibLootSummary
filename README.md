@@ -3,15 +3,23 @@ An Elder Scrolls Online addon library to assist with printing lists of items to 
 
 ## About this library
 
-This library is intended to simplify outputing summaries of loot to ESO chat
+This library is intended to simplify outputting summaries of loot to ESO chat
 
 ## What it looks like
 
-![](https://i.imgur.com/W5odKXw.png)
+*Minimal output with quality minimum*
+![](https://i.imgur.com/yXTQWDo.png)
+
+*With icons and traits, but no quality minimum*
+![](https://i.imgur.com/2T74WDi.png)
+
+> **Important!**
+> When icons are enabled, many fewer items will fit on a single line (2-3 vs. 6-7). 
+> This is because chat has a maximum number of characters per line, and icons are represented by file paths behind the scenes, which use up quite a few characters towards the per-line limit.
 
 ## To use in your addon
 Simply add `## DependsOn: LibLootSummary` to your addon's manifest text file.
-  
+
 ## Usage Example
 
 ```
@@ -27,6 +35,15 @@ lls:SetDelimiter(", ")
 
 -- Use bracket style links
 lls:SetLinkStyle(LINK_STYLE_BRACKETS)
+
+-- Filter summary to only purple or gold items
+lls:SetMinQuality(ITEM_QUALITY_ARCANE)
+
+-- Display item icons to the left of item names in summary
+lls:SetShowIcon(true)
+
+-- Display item trait to the right of item names in summary
+lls:SetShowTrait(true)
 
 -- Prefix to get prepended to every line of the summary
 local prefix = "MyAddon: "

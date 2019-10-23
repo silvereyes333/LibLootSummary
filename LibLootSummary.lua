@@ -49,8 +49,20 @@ function lls:SetLinkStyle(newLinkStyle, scope)
     getListByScope(scope):SetLinkStyle(newLinkStyle)
 end
 
+function lls:SetMinQuality(quality, scope)
+    getListByScope(scope):SetMinQuality(quality)
+end
+
 function lls:SetPrefix(newPrefix, scope)
     getListByScope(scope):SetPrefix(newPrefix)
+end
+
+function lls:SetShowIcon(showIcon, scope)
+    getListByScope(scope):SetShowIcon(showIcon)
+end
+
+function lls.SetShowTrait(showTrait, scope)
+    getListByScope(scope):SetShowTrait(showTrait)
 end
 
 function lls:SetSuffix(newSuffix, scope)

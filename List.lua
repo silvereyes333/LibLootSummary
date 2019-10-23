@@ -22,6 +22,9 @@ function lls.List:Initialize()
     self.delimiter = " "
     self.linkStyle = LINK_STYLE_DEFAULT
     self.combineDuplicates = true
+    self.minQuality = ITEM_QUALITY_MIN_VALUE
+    self.showIcon = false
+    self.showTrait = false
     self.sorted = false
 end
 
@@ -61,11 +64,24 @@ function lls.List:Print()
         table.sort(self.itemKeys, sortByItemName)
     end
     for _, itemLink in ipairs(self.itemKeys) do
-        local quantities = self.itemList[itemLink]
-        for _, quantity in ipairs(quantities) do
-            local countString = zo_strformat(GetString(SI_HOOK_POINT_STORE_REPAIR_KIT_COUNT), quantity)
-            local itemString = zo_strformat("<<1>> <<2>>", itemLink, countString)
-            summary = appendText(itemString, summary, maxLength, lines, self.delimiter, self.prefix)
+        local quality = GetItemLinkQuality(itemLink)
+        if quality >= self.minQuality then
+            local quantities = self.itemList[itemLink]
+            for _, quantity in ipairs(quantities) do
+                local itemString = itemLink
+                if self.showTrait then
+                    local traitType = GetItemLinkTraitInfo(itemLink)
+                    if traitType and traitType > 0 then
+                        itemString = string.format("%s (%s)", itemString, GetString("SI_ITEMTRAITTYPE", traitType))
+                    end
+                end
+                local countString = zo_strformat(GetString(SI_HOOK_POINT_STORE_REPAIR_KIT_COUNT), quantity)
+                itemString = string.format("%s %s", itemString, countString)
+                if self.showIcon then
+                    itemString = string.format("|t90%%:90%%:%s|t%s", GetItemLinkIcon(itemLink), itemString)
+                end
+                summary = appendText(itemString, summary, maxLength, lines, self.delimiter, self.prefix)
+            end
         end
     end
     
@@ -112,8 +128,20 @@ function lls.List:SetLinkStyle(linkStyle)
     self.linkStyle = linkStyle
 end
 
+function lls.List:SetMinQuality(quality)
+    self.minQuality = quality
+end
+
 function lls.List:SetPrefix(prefix)
     self.prefix = prefix
+end
+
+function lls.List:SetShowIcon(showIcon)
+    self.showIcon = showIcon
+end
+
+function lls.List:SetShowTrait(showTrait)
+    self.showTrait = showTrait
 end
 
 function lls.List:SetSorted(sorted)

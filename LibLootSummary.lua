@@ -2,7 +2,7 @@
 -- Distributed under the MIT license (see LICENSE.txt)          --
 ------------------------------------------------------------------
 
-LibLootSummary = { version = "1.1.1" }
+LibLootSummary = { version = "1.2.1" }
 local lls = LibLootSummary
 local lists = {}
 local globalList, getListByScope

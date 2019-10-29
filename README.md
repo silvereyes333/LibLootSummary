@@ -8,9 +8,11 @@ This library is intended to simplify outputting summaries of loot to ESO chat
 ## What it looks like
 
 *Minimal output with quality minimum*
+
 ![](https://i.imgur.com/yXTQWDo.png)
 
 *With icons and traits, but no quality minimum*
+
 ![](https://i.imgur.com/2T74WDi.png)
 
 > **Important!**
@@ -48,7 +50,7 @@ lls:SetShowTrait(true)
 -- Prefix to get prepended to every line of the summary
 local prefix = "MyAddon: "
 prefix = "|cFFFFFF" .. prefix -- set line color to white
-lls:SetPrefix("prefix)
+lls:SetPrefix(prefix)
 
 -- Sort summary alphabetically
 lls:SetSorted(true)

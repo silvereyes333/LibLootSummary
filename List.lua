@@ -57,7 +57,7 @@ function lls.List:Print()
 
     local lines = {}
     local summary = ""
-    local maxLength = MAX_TEXT_CHAT_INPUT_CHARACTERS - string.len(self.prefix) - string.len(self.suffix)
+    local maxLength = MAX_TEXT_CHAT_INPUT_CHARACTERS - ZoUTF8StringLength(self.prefix) - ZoUTF8StringLength(self.suffix)
     
     -- Add items summary
     if self.sorted then
@@ -100,7 +100,7 @@ function lls.List:Print()
     end
     
     -- Append last line
-    if string.len(summary) > string.len(self.prefix) then
+    if ZoUTF8StringLength(summary) > ZoUTF8StringLength(self.prefix) then
         table.insert(lines, summary)
     end
     
@@ -169,10 +169,10 @@ end
 
 function appendText(text, currentText, maxLength, lines, delimiter, prefix)
     local newLine
-    if string.len(currentText) + string.len(delimiter) + string.len(text) > maxLength then
+    if ZoUTF8StringLength(currentText) + ZoUTF8StringLength(delimiter) + ZoUTF8StringLength(text) > maxLength then
         table.insert(lines, currentText)
         currentText = ""
-    elseif string.len(currentText) > string.len(prefix) then
+    elseif ZoUTF8StringLength(currentText) > ZoUTF8StringLength(prefix) then
         currentText = currentText .. delimiter
     end
     currentText = currentText .. text

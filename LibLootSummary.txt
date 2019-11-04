@@ -1,14 +1,20 @@
 ## Title: LibLootSummary
 ## Author: silvereyes
 ## Description: A library to assist with printing lists of items to the chat window.
-## Version: 1.2.1
-## AddOnVersion: 10201
+## Version: 2.0.0
+## AddOnVersion: 20000
+## OptionalDependsOn: LibChatMessage
 ## IsLibrary: true
 ## APIVersion: 100029 100030
 
 ## This Add-On is not created by, affiliated with or sponsored by ZeniMax Media Inc. or its affiliates. 
 ## The Elder Scrolls® and related logos are registered trademarks or trademarks of ZeniMax Media Inc. in the 
 ## United States and/or other countries. All rights reserved.
+
+; Language files
+localization\EN.lua
+localization\$(language).lua
+localization\CreateStrings.lua
 
 ; Library
 LibLootSummary.lua

@@ -55,6 +55,10 @@ lls:SetMinQuality(ITEM_QUALITY_ARCANE)
 -- Display item icons to the left of item names in summary
 lls:SetShowIcon(true)
 
+-- iconSize constructor field
+-- Sets the percentage multiplier for icons.  Defaults to 90%.
+lls:SetIconSize(90)
+
 -- showTrait constructor field
 -- Display item trait to the right of item names in summary
 lls:SetShowTrait(true)

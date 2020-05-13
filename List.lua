@@ -4,9 +4,10 @@ local GetItemLinkQuality = GetItemLinkFunctionalQuality or GetItemLinkQuality
 
 lls.List = ZO_Object:Subclass()
 
-local addQuantity, appendText, coalesce, defaultChat, sortByCurrencyName, sortByItemName, sortByQuality, qualityChoices, qualityChoicesValues
-local generateLam2EnabledOption, generateLam2QualityOption, generateLam2IconsOption, generateLam2TraitsOption, generateLam2HideSingularOption
+local addQuantity, appendText, coalesce, defaultChat, mergeTables, sortByCurrencyName, sortByItemName, sortByQuality, qualityChoices, qualityChoicesValues
+local generateLam2EnabledOption, generateLam2QualityOption, generateLam2IconsOption, generateLam2IconSizeOption, generateLam2TraitsOption, generateLam2HideSingularOption
 local linkFormat = "|H%s:item:%s:1:1:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0|h|h"
+local DEFAULTS
 
 function lls.List:New(...)
     local instance = ZO_Object.New(self)
@@ -18,40 +19,24 @@ function lls.List:Initialize(options)
     if not options then
         options = {}
     end
-    
+
     self:Reset()
-    
-    local defaults = {
-        chat = defaultChat:New(),
-        combineDuplicates = true,
-        delimiter = " ",
-        hideSingularQuantities = false,
-        enabled = true,
-        linkStyle = LINK_STYLE_DEFAULT,
-        minQuality = ITEM_QUALITY_MIN_VALUE or ITEM_FUNCTIONAL_QUALITY_MIN_VALUE,
-        prefix = "",
-        showIcon = false,
-        showTrait = false,
-        sorted = false,
-        sortedByQuality = false,
-        suffix = ""
-    }
-    
-    self:SetOptions(options, defaults)
+
+    self:SetOptions(options, DEFAULTS)
 end
 
 function lls.List:AddCurrency(currencyType, quantity)
     if not self.enabled then
         return
     end
-    
+
     addQuantity(self.currencyList, self.currencyKeys, currencyType, quantity, self.combineDuplicates)
 end
 function lls.List:AddItem(bagId, slotIndex, quantity)
     if not self.enabled then
         return
     end
-    
+
     local itemLink = GetItemLink(bagId, slotIndex, self.linkStyle)
     if not quantity then
         local stackSize, maxStackSize = GetSlotStackSize(bagId, slotIndex)
@@ -63,42 +48,45 @@ function lls.List:AddItemId(itemId, quantity)
     if not self.enabled then
         return
     end
-    
+
     local itemLink = string.format(linkFormat, self.linkStyle, itemId)
     self:AddItemLink(itemLink, quantity, true)
 end
 function lls.List:AddItemLink(itemLink, quantity, dontChangeStyle)
-
     if not self.enabled then
         return
     end
-    
+
     if not dontChangeStyle then
         itemLink = string.gsub(itemLink, "|H[0-1]:", "|H"..tostring(self.linkStyle)..":")
     end
-    
+
     addQuantity(self.itemList, self.itemKeys, itemLink, quantity, self.combineDuplicates)
 end
 
 function lls.List:GenerateLam2ItemOptions(addonName, savedVarChildTable, defaults)
+    defaults = mergeTables(defaults, DEFAULTS)
     return generateLam2EnabledOption(self, addonName, savedVarChildTable, defaults, SI_LLS_ITEM_SUMMARY, SI_LLS_ITEM_SUMMARY_TOOLTIP),
         generateLam2QualityOption(self, savedVarChildTable, defaults, SI_LLS_MIN_ITEM_QUALITY, SI_LLS_MIN_ITEM_QUALITY_TOOLTIP),
         generateLam2IconsOption(self, savedVarChildTable, defaults, SI_LLS_SHOW_ITEM_ICONS, SI_LLS_SHOW_ITEM_ICONS_TOOLTIP),
+        generateLam2IconSizeOption(self, savedVarChildTable, defaults, SI_LLS_SHOW_ITEM_ICON_SIZE, SI_LLS_SHOW_ITEM_ICON_SIZE_TOOLTIP),
         generateLam2TraitsOption(self, savedVarChildTable, defaults, SI_LLS_SHOW_ITEM_TRAITS, SI_LLS_SHOW_ITEM_TRAITS_TOOLTIP),
         generateLam2HideSingularOption(self, savedVarChildTable, defaults, SI_LLS_HIDE_ITEM_SINGLE_QTY, SI_LLS_HIDE_ITEM_SINGLE_QTY_TOOLTIP)
 end
 
 function lls.List:GenerateLam2LootOptions(addonName, savedVarChildTable, defaults)
+    defaults = mergeTables(defaults, DEFAULTS)
     return generateLam2EnabledOption(self, addonName, savedVarChildTable, defaults, SI_LLS_LOOT_SUMMARY, SI_LLS_LOOT_SUMMARY_TOOLTIP),
         generateLam2QualityOption(self, savedVarChildTable, defaults, SI_LLS_MIN_LOOT_QUALITY, SI_LLS_MIN_LOOT_QUALITY_TOOLTIP),
         generateLam2IconsOption(self, savedVarChildTable, defaults, SI_LLS_SHOW_LOOT_ICONS, SI_LLS_SHOW_LOOT_ICONS_TOOLTIP),
+        generateLam2IconSizeOption(self, savedVarChildTable, defaults, SI_LLS_SHOW_LOOT_ICON_SIZE, SI_LLS_SHOW_LOOT_ICON_SIZE_TOOLTIP),
         generateLam2TraitsOption(self, savedVarChildTable, defaults, SI_LLS_SHOW_LOOT_TRAITS, SI_LLS_SHOW_LOOT_TRAITS_TOOLTIP),
         generateLam2HideSingularOption(self, savedVarChildTable, defaults, SI_LLS_HIDE_LOOT_SINGLE_QTY, SI_LLS_HIDE_LOOT_SINGLE_QTY_TOOLTIP)
 end
 
 --[[ Outputs a verbose summary of all loot and currency ]]
 function lls.List:Print()
-  
+
     if not self.enabled then
         return
     end
@@ -106,7 +94,7 @@ function lls.List:Print()
     local lines = {}
     local summary = ""
     local maxLength = (self.chat.maxCharsPerLine or 1200) - ZoUTF8StringLength(self.prefix) - ZoUTF8StringLength(self.suffix)
-    
+
     -- Add items summary
     if self.sortedByQuality then
         table.sort(self.itemKeys, sortByQuality)
@@ -131,7 +119,8 @@ function lls.List:Print()
                 end
                 local iconStringLength = 0
                 if self.showIcon then
-                    local iconString = string.format("|t90%%:90%%:%s|t", GetItemLinkIcon(itemLink))
+                    local iconSize = string.format("%s%%", tostring(self.iconSize))
+                    local iconString = zo_iconFormat(GetItemLinkIcon(itemLink), iconSize, iconSize)
                     if not self.chat.isDefault then
                         iconStringLength = string.len(iconString)
                     end
@@ -141,7 +130,7 @@ function lls.List:Print()
             end
         end
     end
-    
+
     -- Add money summary
     if self.sorted then
         table.sort(self.currencyKeys, sortByCurrencyName)
@@ -163,17 +152,17 @@ function lls.List:Print()
             summary = appendText(moneyString, summary, maxLength, lines, self.delimiter, self.prefix, iconStringLength)
         end
     end
-    
+
     -- Append last line
     if ZoUTF8StringLength(summary) > ZoUTF8StringLength(self.prefix) then
         table.insert(lines, summary)
     end
-    
+
     -- Print to chat
     for _, line in ipairs(lines) do
         self.chat:Print(self.prefix .. line .. self.suffix)
     end
-    
+
     self:Reset()
 end
 
@@ -230,6 +219,10 @@ function lls.List:SetShowIcon(showIcon)
     self.showIcon = showIcon
 end
 
+function lls.List:SetIconSize(size)
+    self.iconSize = size
+end
+
 function lls.List:SetShowTrait(showTrait)
     self.showTrait = showTrait
 end
@@ -267,8 +260,8 @@ function addQuantity(list, keys, key, quantity, combineDuplicates)
 end
 
 function appendText(text, currentText, maxLength, lines, delimiter, prefix, iconStringLength)
-    local newLine
-    local stringLength = ZoUTF8StringLength(currentText) + ZoUTF8StringLength(delimiter) + ZoUTF8StringLength(text)
+    local currentTextLength = ZoUTF8StringLength(currentText)
+    local stringLength = currentTextLength + ZoUTF8StringLength(delimiter) + ZoUTF8StringLength(text)
     -- icons only take up the space of two characters
     if iconStringLength > 0 then
         stringLength = stringLength - iconStringLength + 2 
@@ -276,7 +269,7 @@ function appendText(text, currentText, maxLength, lines, delimiter, prefix, icon
     if stringLength > maxLength then
         table.insert(lines, currentText)
         currentText = ""
-    elseif ZoUTF8StringLength(currentText) > ZoUTF8StringLength(prefix) then
+    elseif currentTextLength > ZoUTF8StringLength(prefix) then
         currentText = currentText .. delimiter
     end
     currentText = currentText .. text
@@ -290,7 +283,6 @@ function coalesce(input, default)
     return input
 end
 
-
 defaultChat = ZO_Object:Subclass()
 function defaultChat:New(...)
     local instance = ZO_Object.New(self)
@@ -299,7 +291,50 @@ function defaultChat:New(...)
     return instance
 end
 function defaultChat:Print(message)
-    d(message)
+    if CHAT_ROUTER then
+        CHAT_ROUTER:AddDebugMessage(message)
+    end
+end
+
+DEFAULTS = {
+    chat = defaultChat:New(),
+    combineDuplicates = true,
+    delimiter = " ",
+    hideSingularQuantities = false,
+    enabled = true,
+    linkStyle = LINK_STYLE_DEFAULT,
+    minQuality = ITEM_QUALITY_MIN_VALUE or ITEM_FUNCTIONAL_QUALITY_MIN_VALUE,
+    prefix = "",
+    showIcon = false,
+    iconSize = 90,
+    showTrait = false,
+    sorted = false,
+    sortedByQuality = false,
+    suffix = ""
+}
+
+local function getIcons(self, savedVarChildTable, defaults)
+    return coalesce(savedVarChildTable and savedVarChildTable.icons, defaults.icons)
+end
+
+local function getIconSize(self, savedVarChildTable, defaults)
+    return coalesce(savedVarChildTable and savedVarChildTable.iconSize, defaults.iconSize)
+end
+
+local function getHideSingularQuantities(self, savedVarChildTable, defaults)
+    return coalesce(savedVarChildTable and savedVarChildTable.hideSingularQuantities, defaults.hideSingularQuantities)
+end
+
+local function getIsEnabled(self, savedVarChildTable, defaults)
+    return coalesce(savedVarChildTable and savedVarChildTable.enabled, defaults.enabled)
+end
+
+local function getMinQuality(self, savedVarChildTable, defaults)
+    return coalesce(savedVarChildTable and savedVarChildTable.minQuality, defaults.minQuality)
+end
+
+local function getTraits(self, savedVarChildTable, defaults)
+    return coalesce(savedVarChildTable and savedVarChildTable.traits, defaults.traits)
 end
 
 function generateLam2EnabledOption(self, addonName, savedVarChildTable, defaults, name, tooltip)
@@ -309,7 +344,9 @@ function generateLam2EnabledOption(self, addonName, savedVarChildTable, defaults
             type = "checkbox",
             name = GetString(name),
             tooltip = zo_strformat(tooltip, addonName),
-            getFunc = function() return savedVarChildTable.enabled end,
+            getFunc = function()
+                return getIsEnabled(self, savedVarChildTable, defaults)
+            end,
             setFunc = 
                 function(value)
                     savedVarChildTable.enabled = value
@@ -325,14 +362,20 @@ function generateLam2HideSingularOption(self, savedVarChildTable, defaults, name
             type = "checkbox",
             name = GetString(name),
             tooltip = GetString(tooltip),
-            getFunc = function() return savedVarChildTable.hideSingularQuantities end,
+            getFunc =
+                function()
+                    return getHideSingularQuantities(self, savedVarChildTable, defaults)
+                end,
             setFunc = 
                 function(value)
                     savedVarChildTable.hideSingularQuantities = value
                     self:SetHideSingularQuantities(value)
                 end,
             default = defaults.hideSingularQuantities,
-            disabled = function() return not savedVarChildTable.enabled end,
+            disabled =
+                function()
+                    return not getIsEnabled(self, savedVarChildTable, defaults)
+                end,
         }
 end
 function generateLam2IconsOption(self, savedVarChildTable, defaults, name, tooltip)
@@ -342,14 +385,48 @@ function generateLam2IconsOption(self, savedVarChildTable, defaults, name, toolt
             type = "checkbox",
             name = GetString(name),
             tooltip = GetString(tooltip),
-            getFunc = function() return savedVarChildTable.icons end,
+            getFunc = 
+                function()
+                    return getIcons(self, savedVarChildTable, defaults)
+                end,
             setFunc = 
                 function(value)
                     savedVarChildTable.icons = value
                     self:SetShowIcon(value)
                 end,
             default = defaults.icons,
-            disabled = function() return not savedVarChildTable.enabled end,
+            disabled =
+                function()
+                    return not getIsEnabled(self, savedVarChildTable, defaults)
+                end,
+        }
+end
+function generateLam2IconSizeOption(self, savedVarChildTable, defaults, name, tooltip)
+    return 
+        -- Set icons size
+        {
+            type = "slider",
+            min = 50,
+            max = 200,
+            step = 10,
+            decimals = 0,
+            clampInput = true,
+            name = GetString(name),
+            tooltip = GetString(tooltip),
+            getFunc = 
+                function()
+                    return getIconSize(self, savedVarChildTable, defaults)
+                end,
+            setFunc = 
+                function(value)
+                    savedVarChildTable.iconSize = value
+                    self:SetIconSize(value)
+                end,
+            default = defaults.iconSize,
+            disabled = 
+                function()
+                    return not getIsEnabled(self, savedVarChildTable, defaults) or not getIcons(self, savedVarChildTable, defaults)
+                end,
         }
 end
 function generateLam2QualityOption(self, savedVarChildTable, defaults, name, tooltip)
@@ -359,16 +436,23 @@ function generateLam2QualityOption(self, savedVarChildTable, defaults, name, too
             type = "dropdown",
             choices = qualityChoices,
             choicesValues = qualityChoicesValues,
+            sort = "numericvalue-up",
             name = GetString(name),
             tooltip = GetString(tooltip),
-            getFunc = function() return savedVarChildTable.minQuality end,
+            getFunc =
+                function()
+                    return getMinQuality(self, savedVarChildTable, defaults)
+                end,
             setFunc = 
                 function(value)
                     savedVarChildTable.minQuality = value
                     self:SetMinQuality(value)
                 end,
             default = defaults.minQuality,
-            disabled = function() return not savedVarChildTable.enabled end,
+            disabled =
+                function()
+                    return not getIsEnabled(self, savedVarChildTable, defaults)
+                end,
         }
 end
 function generateLam2TraitsOption(self, savedVarChildTable, defaults, name, tooltip)
@@ -378,15 +462,31 @@ function generateLam2TraitsOption(self, savedVarChildTable, defaults, name, tool
             type = "checkbox",
             name = GetString(name),
             tooltip = GetString(tooltip),
-            getFunc = function() return savedVarChildTable.traits end,
+            getFunc =
+                function()
+                    return getTraits(self, savedVarChildTable, defaults)
+                end,
             setFunc = 
                 function(value)
                     savedVarChildTable.traits = value
                     self:SetShowTrait(value)
                 end,
             default = defaults.traits,
-            disabled = function() return not savedVarChildTable.enabled end,
+            disabled =
+                function()
+                    return not getIsEnabled(self, savedVarChildTable, defaults)
+                end,
         }
+end
+
+function mergeTables(table1, table2)
+    local merged = ZO_ShallowTableCopy(table1)
+    for key, value in pairs(table2) do
+        if merged[key] == nil then
+            merged[key] = value
+        end
+    end
+    return merged
 end
 
 function sortByCurrencyName(currencyType1, currencyType2)

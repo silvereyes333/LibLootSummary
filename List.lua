@@ -276,11 +276,14 @@ function appendText(text, currentText, maxLength, lines, delimiter, prefix, icon
     return currentText
 end
 
-function coalesce(input, default)
-    if input == nil then
-        return default
+function coalesce(...)
+    local args = {...}
+    for key = 1, #args do
+        local value = args[key]
+        if value ~= nil then
+            return value, key
+        end
     end
-    return input
 end
 
 defaultChat = ZO_Object:Subclass()
@@ -314,7 +317,7 @@ DEFAULTS = {
 }
 
 local function getIcons(self, savedVarChildTable, defaults)
-    return coalesce(savedVarChildTable and savedVarChildTable.icons, defaults.icons)
+    return coalesce(savedVarChildTable and savedVarChildTable.icons, savedVarChildTable and savedVarChildTable.showIcon, defaults.icons, defaults.showIcon)
 end
 
 local function getIconSize(self, savedVarChildTable, defaults)
@@ -334,7 +337,7 @@ local function getMinQuality(self, savedVarChildTable, defaults)
 end
 
 local function getTraits(self, savedVarChildTable, defaults)
-    return coalesce(savedVarChildTable and savedVarChildTable.traits, defaults.traits)
+    return coalesce(savedVarChildTable and savedVarChildTable.traits, savedVarChildTable and savedVarChildTable.showTrait, defaults.traits, defaults.showTrait)
 end
 
 function generateLam2EnabledOption(self, addonName, savedVarChildTable, defaults, name, tooltip)
@@ -391,10 +394,10 @@ function generateLam2IconsOption(self, savedVarChildTable, defaults, name, toolt
                 end,
             setFunc = 
                 function(value)
-                    savedVarChildTable.icons = value
+                    savedVarChildTable[defaults.icons ~= nil and "icons" or "showIcon"] = value
                     self:SetShowIcon(value)
                 end,
-            default = defaults.icons,
+            default = coalesce(defaults.icons, defaults.showIcon),
             disabled =
                 function()
                     return not getIsEnabled(self, savedVarChildTable, defaults)
@@ -468,10 +471,11 @@ function generateLam2TraitsOption(self, savedVarChildTable, defaults, name, tool
                 end,
             setFunc = 
                 function(value)
-                    savedVarChildTable.traits = value
+                    
+                    savedVarChildTable[defaults.traits ~= nil and "traits" or "showTrait"] = value
                     self:SetShowTrait(value)
                 end,
-            default = defaults.traits,
+            default = coalesce(defaults.traits, defaults.showTrait),
             disabled =
                 function()
                     return not getIsEnabled(self, savedVarChildTable, defaults)

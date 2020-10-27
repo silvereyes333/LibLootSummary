@@ -1,5 +1,4 @@
 local lls = LibLootSummary
--- local chatProxy = LibChatMessage and getmetatable(LibChatMessage.Create("__","_"))
 
 local List = ZO_Object:Subclass()
 lls.List = List

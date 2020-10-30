@@ -14,12 +14,16 @@ local DEFAULTS
 
 function List:New(options)
     local instance = ZO_Object.New(self)
-    instance.itemList = {}
-    instance.itemKeys = {}
-    instance.currencyList = {}
-    instance.currencyKeys = {}
-    instance:SetOptions(options or {}, DEFAULTS)
+    instance:Initialize(options)
     return instance
+end
+
+function List:Initialize(options)
+    self.itemList = {}
+    self.itemKeys = {}
+    self.currencyList = {}
+    self.currencyKeys = {}
+    self:SetOptions(options or {}, DEFAULTS)
 end
 
 function List:AddCurrency(currencyType, quantity)

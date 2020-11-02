@@ -1,5 +1,4 @@
 local lls = LibLootSummary
-local chatProxy = LibChatMessage and getmetatable(LibChatMessage.Create("__","_"))
 local GetItemLinkQuality = GetItemLinkFunctionalQuality or GetItemLinkQuality
 
 lls.List = ZO_Object:Subclass()

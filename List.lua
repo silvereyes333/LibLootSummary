@@ -23,6 +23,10 @@ function List:Initialize(options)
     self.itemKeys = {}
     self.currencyList = {}
     self.currencyKeys = {}
+
+    setmetatable(self.itemList, { __mode = "v" }
+    setmetatable(self.currencyList, { __mode = "v" }
+
     self:SetOptions(options or {}, DEFAULTS)
 end
 
@@ -171,10 +175,10 @@ function List:Print()
 end
 
 function List:Reset()
-    ZO_ClearTable(self.itemList)
-    ZO_ClearTable(self.itemKeys)
-    ZO_ClearTable(self.currencyList)
-    ZO_ClearTable(self.currencyKeys)
+    self.itemList = {}
+    self.itemKeys = {}
+    self.currencyList = {}
+    self.currencyKeys = {}
 end
 
 function List:SetCombineDuplicates(combineDuplicates)

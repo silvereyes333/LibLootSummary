@@ -24,8 +24,8 @@ function List:Initialize(options)
     self.currencyList = {}
     self.currencyKeys = {}
 
-    setmetatable(self.itemList, { __mode = "v" }
-    setmetatable(self.currencyList, { __mode = "v" }
+    setmetatable(self.itemList, { __mode = "v" })
+    setmetatable(self.currencyList, { __mode = "v" })
 
     self:SetOptions(options or {}, DEFAULTS)
 end

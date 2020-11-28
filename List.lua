@@ -3,9 +3,10 @@ local GetItemLinkQuality = GetItemLinkFunctionalQuality or GetItemLinkQuality
 
 lls.List = ZO_Object:Subclass()
 
-local addQuantity, appendText, coalesce, defaultChat, mergeTables, sortByCurrencyName, sortByItemName, sortByQuality, qualityChoices, qualityChoicesValues
-local generateLam2EnabledOption, generateLam2QualityOption, generateLam2IconsOption, generateLam2IconSizeOption, generateLam2TraitsOption, generateLam2HideSingularOption
+local addQuantity, appendText, coalesce, defaultChat, mergeTables, sortByCurrencyName, sortByItemName, sortByQuality, qualityChoices, qualityChoicesValues, isSetItemNotCollected
+local generateLam2EnabledOption, generateLam2QualityOption, generateLam2IconsOption, generateLam2IconSizeOption, generateLam2TraitsOption, generateLam2HideSingularOption, generateLam2CollectionOption
 local linkFormat = "|H%s:item:%s:1:1:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0|h|h"
+local collectionIcon = "EsoUI/Art/Collections/collections_tabIcon_itemSets_down.dds"
 local DEFAULTS
 
 function lls.List:New(...)
@@ -70,6 +71,7 @@ function lls.List:GenerateLam2ItemOptions(addonName, savedVarChildTable, default
         generateLam2IconsOption(self, savedVarChildTable, defaults, SI_LLS_SHOW_ITEM_ICONS, SI_LLS_SHOW_ITEM_ICONS_TOOLTIP),
         generateLam2IconSizeOption(self, savedVarChildTable, defaults, SI_LLS_SHOW_ITEM_ICON_SIZE, SI_LLS_SHOW_ITEM_ICON_SIZE_TOOLTIP),
         generateLam2TraitsOption(self, savedVarChildTable, defaults, SI_LLS_SHOW_ITEM_TRAITS, SI_LLS_SHOW_ITEM_TRAITS_TOOLTIP),
+		generateLam2CollectionOption(self, savedVarChildTable, defaults, SI_LLS_SHOW_ITEM_NOT_COLLECTED, SI_LLS_SHOW_ITEM_NOT_COLLECTED_TOOLTIP),
         generateLam2HideSingularOption(self, savedVarChildTable, defaults, SI_LLS_HIDE_ITEM_SINGLE_QTY, SI_LLS_HIDE_ITEM_SINGLE_QTY_TOOLTIP)
 end
 
@@ -80,6 +82,7 @@ function lls.List:GenerateLam2LootOptions(addonName, savedVarChildTable, default
         generateLam2IconsOption(self, savedVarChildTable, defaults, SI_LLS_SHOW_LOOT_ICONS, SI_LLS_SHOW_LOOT_ICONS_TOOLTIP),
         generateLam2IconSizeOption(self, savedVarChildTable, defaults, SI_LLS_SHOW_LOOT_ICON_SIZE, SI_LLS_SHOW_LOOT_ICON_SIZE_TOOLTIP),
         generateLam2TraitsOption(self, savedVarChildTable, defaults, SI_LLS_SHOW_LOOT_TRAITS, SI_LLS_SHOW_LOOT_TRAITS_TOOLTIP),
+		generateLam2CollectionOption(self, savedVarChildTable, defaults, SI_LLS_SHOW_LOOT_NOT_COLLECTED, SI_LLS_SHOW_LOOT_NOT_COLLECTED_TOOLTIP),
         generateLam2HideSingularOption(self, savedVarChildTable, defaults, SI_LLS_HIDE_LOOT_SINGLE_QTY, SI_LLS_HIDE_LOOT_SINGLE_QTY_TOOLTIP)
 end
 
@@ -106,6 +109,14 @@ function lls.List:Print()
             local quantities = self.itemList[itemLink]
             for _, quantity in ipairs(quantities) do
                 local itemString = itemLink
+                local iconStringLength = 0
+                if self.showNotCollected and isSetItemNotCollected(itemLink) then
+                    local iconString = zo_iconFormat(collectionIcon, "120%", "120%")
+                    if not self.chat.isDefault then
+                        iconStringLength = string.len(iconString)
+                    end
+                    itemString = itemString .. iconString
+                end
                 if self.showTrait and GetItemLinkEquipType(itemLink) ~= EQUIP_TYPE_INVALID then
                     local traitType = GetItemLinkTraitInfo(itemLink)
                     if traitType and traitType > 0 then
@@ -116,12 +127,11 @@ function lls.List:Print()
                     local countString = zo_strformat(GetString(SI_HOOK_POINT_STORE_REPAIR_KIT_COUNT), quantity)
                     itemString = string.format("%s %s", itemString, countString)
                 end
-                local iconStringLength = 0
                 if self.showIcon then
                     local iconSize = string.format("%s%%", tostring(self.iconSize))
                     local iconString = zo_iconFormat(GetItemLinkIcon(itemLink), iconSize, iconSize)
                     if not self.chat.isDefault then
-                        iconStringLength = string.len(iconString)
+                        iconStringLength = iconStringLength + string.len(iconString)
                     end
                     itemString = iconString .. itemString
                 end
@@ -226,6 +236,10 @@ function lls.List:SetShowTrait(showTrait)
     self.showTrait = showTrait
 end
 
+function lls.List:SetShowNotCollected(showNotCollected)
+    self.showNotCollected = showNotCollected
+end
+
 function lls.List:SetSorted(sorted)
     self.sorted = sorted
 end
@@ -310,6 +324,7 @@ DEFAULTS = {
     showIcon = false,
     iconSize = 90,
     showTrait = false,
+    showNotCollected = false,
     sorted = false,
     sortedByQuality = false,
     suffix = ""
@@ -336,6 +351,10 @@ local function getMinQuality(self, savedVarChildTable, defaults)
 end
 
 local function getTraits(self, savedVarChildTable, defaults)
+    return coalesce(savedVarChildTable and savedVarChildTable.traits, savedVarChildTable and savedVarChildTable.showTrait, defaults.traits, defaults.showTrait)
+end
+
+local function getCollectionPiece(self, savedVarChildTable, defaults)
     return coalesce(savedVarChildTable and savedVarChildTable.traits, savedVarChildTable and savedVarChildTable.showTrait, defaults.traits, defaults.showTrait)
 end
 
@@ -480,6 +499,37 @@ function generateLam2TraitsOption(self, savedVarChildTable, defaults, name, tool
                     return not getIsEnabled(self, savedVarChildTable, defaults)
                 end,
         }
+end
+function generateLam2CollectionOption(self, savedVarChildTable, defaults, name, tooltip)
+    return 
+        -- Show not collected piece
+        {
+            type = "checkbox",
+            name = GetString(name),
+            tooltip = GetString(tooltip),
+            getFunc =
+                function()
+                    return getTraits(self, savedVarChildTable, defaults)
+                end,
+            setFunc = 
+                function(value)
+                    
+                    savedVarChildTable[defaults.notCollected ~= nil and "notCollected" or "showNotCollected"] = value
+                    self:SetShowNotCollected(value)
+                end,
+            default = coalesce(defaults.notCollected, defaults.showNotCollected),
+            disabled =
+                function()
+                    return not getIsEnabled(self, savedVarChildTable, defaults)
+                end,
+        }
+end
+
+function isSetItemNotCollected(itemLink)
+    if not IsItemLinkSetCollectionPiece(itemLink) then return nil end
+    local setId = select(6, GetItemLinkSetInfo(itemLink, false))
+    local slot = GetItemLinkItemSetCollectionSlot(itemLink)
+    return not IsItemSetCollectionSlotUnlocked(setId, slot)
 end
 
 function mergeTables(table1, table2)

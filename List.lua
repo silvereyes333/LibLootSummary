@@ -489,7 +489,6 @@ function generateLam2TraitsOption(self, savedVarChildTable, defaults, name, tool
                 end,
             setFunc = 
                 function(value)
-                    
                     savedVarChildTable[defaults.traits ~= nil and "traits" or "showTrait"] = value
                     self:SetShowTrait(value)
                 end,
@@ -513,7 +512,6 @@ function generateLam2CollectionOption(self, savedVarChildTable, defaults, name, 
                 end,
             setFunc = 
                 function(value)
-                    
                     savedVarChildTable[defaults.notCollected ~= nil and "notCollected" or "showNotCollected"] = value
                     self:SetShowNotCollected(value)
                 end,

@@ -355,7 +355,7 @@ local function getTraits(self, savedVarChildTable, defaults)
 end
 
 local function getCollectionPiece(self, savedVarChildTable, defaults)
-    return coalesce(savedVarChildTable and savedVarChildTable.traits, savedVarChildTable and savedVarChildTable.showTrait, defaults.traits, defaults.showTrait)
+    return coalesce(savedVarChildTable and savedVarChildTable.traits, savedVarChildTable and savedVarChildTable.showNotCollected, defaults.traits, defaults.showNotCollected)
 end
 
 function generateLam2EnabledOption(self, addonName, savedVarChildTable, defaults, name, tooltip)

@@ -3,41 +3,39 @@ local lls = LibLootSummary
 local List = ZO_Object:Subclass()
 lls.List = List
 
-local addQuantity, appendText, coalesce, defaultChat, mergeTables, sortByCurrencyName, sortByItemName, sortByQuality, qualityChoices, qualityChoicesValues
-local generateLam2EnabledOption, generateLam2QualityOption, generateLam2IconsOption, generateLam2IconSizeOption, generateLam2TraitsOption, generateLam2HideSingularOption
+local addQuantity, appendText, coalesce, defaultChat, mergeTables, sortByCurrencyName, sortByItemName, sortByQuality, qualityChoices, qualityChoicesValues, isSetItemNotCollected
+local generateLam2EnabledOption, generateLam2QualityOption, generateLam2IconsOption, generateLam2IconSizeOption, generateLam2TraitsOption, generateLam2HideSingularOption, generateLam2CollectionOption
 local GetItemLinkFunctionalQuality, ZO_CachedStrFormat, GetCurrencyName = GetItemLinkFunctionalQuality, ZO_CachedStrFormat, GetCurrencyName
 local zo_strgsub, zo_strlen, zo_min = zo_strgsub, zo_strlen, zo_min
 local tostring, pairs, ipairs = tostring, pairs, ipairs
 local tableInsert, stringFormat, tableSort = table.insert, string.format, table.sort
 local linkFormat = "|H%s:item:%s:1:1:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0|h|h"
+local collectionIcon = "EsoUI/Art/Collections/collections_tabIcon_itemSets_down.dds"
 local DEFAULTS
 
-function List:New(options)
+function lls.List:New(options)
     local instance = ZO_Object.New(self)
     instance:Initialize(options)
     return instance
 end
 
-function List:Initialize(options)
-    self.itemList = {}
-    self.itemKeys = {}
-    self.currencyList = {}
-    self.currencyKeys = {}
-
+function lls.List:Initialize(options)
+    self:Reset()
+    
     setmetatable(self.itemList, { __mode = "v" })
     setmetatable(self.currencyList, { __mode = "v" })
 
     self:SetOptions(options or {}, DEFAULTS)
 end
 
-function List:AddCurrency(currencyType, quantity)
+function lls.List:AddCurrency(currencyType, quantity)
     if not self:IsEnabled() then
         return
     end
 
     addQuantity(self.currencyList, self.currencyKeys, currencyType, quantity, self.combineDuplicates)
 end
-function List:AddItem(bagId, slotIndex, quantity)
+function lls.List:AddItem(bagId, slotIndex, quantity)
     if not self:IsEnabled() then
         return
     end
@@ -49,14 +47,14 @@ function List:AddItem(bagId, slotIndex, quantity)
 
     self:AddItemLink(GetItemLink(bagId, slotIndex, self.linkStyle), quantity, true)
 end
-function List:AddItemId(itemId, quantity)
+function lls.List:AddItemId(itemId, quantity)
     if not self:IsEnabled() then
         return
     end
 
     self:AddItemLink(stringFormat(linkFormat, self.linkStyle, itemId), quantity, true)
 end
-function List:AddItemLink(itemLink, quantity, dontChangeStyle)
+function lls.List:AddItemLink(itemLink, quantity, dontChangeStyle)
     if not self:IsEnabled() then
         return
     end
@@ -68,28 +66,30 @@ function List:AddItemLink(itemLink, quantity, dontChangeStyle)
     addQuantity(self.itemList, self.itemKeys, itemLink, quantity, self.combineDuplicates)
 end
 
-function List:GenerateLam2ItemOptions(addonName, savedVarChildTable, defaults)
+function lls.List:GenerateLam2ItemOptions(addonName, savedVarChildTable, defaults)
     defaults = mergeTables(defaults, DEFAULTS)
     return generateLam2EnabledOption(self, addonName, savedVarChildTable, defaults, SI_LLS_ITEM_SUMMARY, SI_LLS_ITEM_SUMMARY_TOOLTIP),
         generateLam2QualityOption(self, savedVarChildTable, defaults, SI_LLS_MIN_ITEM_QUALITY, SI_LLS_MIN_ITEM_QUALITY_TOOLTIP),
         generateLam2IconsOption(self, savedVarChildTable, defaults, SI_LLS_SHOW_ITEM_ICONS, SI_LLS_SHOW_ITEM_ICONS_TOOLTIP),
         generateLam2IconSizeOption(self, savedVarChildTable, defaults, SI_LLS_SHOW_ITEM_ICON_SIZE, SI_LLS_SHOW_ITEM_ICON_SIZE_TOOLTIP),
         generateLam2TraitsOption(self, savedVarChildTable, defaults, SI_LLS_SHOW_ITEM_TRAITS, SI_LLS_SHOW_ITEM_TRAITS_TOOLTIP),
+        generateLam2CollectionOption(self, savedVarChildTable, defaults, SI_LLS_SHOW_ITEM_NOT_COLLECTED, SI_LLS_SHOW_ITEM_NOT_COLLECTED_TOOLTIP),
         generateLam2HideSingularOption(self, savedVarChildTable, defaults, SI_LLS_HIDE_ITEM_SINGLE_QTY, SI_LLS_HIDE_ITEM_SINGLE_QTY_TOOLTIP)
 end
 
-function List:GenerateLam2LootOptions(addonName, savedVarChildTable, defaults)
+function lls.List:GenerateLam2LootOptions(addonName, savedVarChildTable, defaults)
     defaults = mergeTables(defaults, DEFAULTS)
     return generateLam2EnabledOption(self, addonName, savedVarChildTable, defaults, SI_LLS_LOOT_SUMMARY, SI_LLS_LOOT_SUMMARY_TOOLTIP),
         generateLam2QualityOption(self, savedVarChildTable, defaults, SI_LLS_MIN_LOOT_QUALITY, SI_LLS_MIN_LOOT_QUALITY_TOOLTIP),
         generateLam2IconsOption(self, savedVarChildTable, defaults, SI_LLS_SHOW_LOOT_ICONS, SI_LLS_SHOW_LOOT_ICONS_TOOLTIP),
         generateLam2IconSizeOption(self, savedVarChildTable, defaults, SI_LLS_SHOW_LOOT_ICON_SIZE, SI_LLS_SHOW_LOOT_ICON_SIZE_TOOLTIP),
         generateLam2TraitsOption(self, savedVarChildTable, defaults, SI_LLS_SHOW_LOOT_TRAITS, SI_LLS_SHOW_LOOT_TRAITS_TOOLTIP),
+        generateLam2CollectionOption(self, savedVarChildTable, defaults, SI_LLS_SHOW_LOOT_NOT_COLLECTED, SI_LLS_SHOW_LOOT_NOT_COLLECTED_TOOLTIP),
         generateLam2HideSingularOption(self, savedVarChildTable, defaults, SI_LLS_HIDE_LOOT_SINGLE_QTY, SI_LLS_HIDE_LOOT_SINGLE_QTY_TOOLTIP)
 end
 
 --[[ Outputs a verbose summary of all loot and currency ]]
-function List:Print()
+function lls.List:Print()
 
     if not self:IsEnabled() then
         return
@@ -113,6 +113,14 @@ function List:Print()
             quantities = self.itemList[itemLink]
             for _, quantity in ipairs(quantities) do
                 local itemString = itemLink
+                iconStringLength = 0
+                if self.showNotCollected and isSetItemNotCollected(itemLink) then
+                    local iconString = zo_iconFormat(collectionIcon, "120%", "120%")
+                    if not self.chat.isDefault then
+                        iconStringLength = string.len(iconString)
+                    end
+                    itemString = itemString .. iconString
+                end
                 if self.showTrait and GetItemLinkEquipType(itemLink) ~= EQUIP_TYPE_INVALID then
                     local traitType = GetItemLinkTraitInfo(itemLink)
                     if traitType and traitType > 0 then
@@ -120,15 +128,15 @@ function List:Print()
                     end
                 end
                 if not self.hideSingularQuantities or quantity > 1 then
-                    local countString = ZO_CachedStrFormat(GetString(SI_HOOK_POINT_STORE_REPAIR_KIT_COUNT), quantity)
+                    countString = ZO_CachedStrFormat(GetString(SI_HOOK_POINT_STORE_REPAIR_KIT_COUNT), quantity)
                     itemString = stringFormat("%s %s", itemString, countString)
                 end
-                iconStringLength = 0
+                local iconStringLength = 0
                 if self.showIcon then
                     local iconSize = stringFormat("%s%%", tostring(self.iconSize))
                     local iconString = zo_iconFormat(GetItemLinkIcon(itemLink), iconSize, iconSize)
                     if not self.chat.isDefault then
-                        iconStringLength = zo_strlen(iconString)
+                        iconStringLength = iconStringLength + zo_strlen(iconString)
                     end
                     itemString = iconString .. itemString
                 end
@@ -174,42 +182,42 @@ function List:Print()
     self:Reset()
 end
 
-function List:Reset()
+function lls.List:Reset()
     self.itemList = {}
     self.itemKeys = {}
     self.currencyList = {}
     self.currencyKeys = {}
 end
 
-function List:SetCombineDuplicates(combineDuplicates)
+function lls.List:SetCombineDuplicates(combineDuplicates)
     self.combineDuplicates = combineDuplicates
 end
 
-function List:SetDelimiter(delimiter)
+function lls.List:SetDelimiter(delimiter)
     self.delimiter = delimiter
 end
 
-function List:SetEnabled(enabled)
+function lls.List:SetEnabled(enabled)
     self.enabled = enabled
 end
 
-function List:IsEnabled()
+function lls.List:IsEnabled()
     return self.enabled
 end
 
-function List:SetHideSingularQuantities(hideSingularQuantities)
+function lls.List:SetHideSingularQuantities(hideSingularQuantities)
     self.hideSingularQuantities = hideSingularQuantities
 end
 
-function List:SetLinkStyle(linkStyle)
+function lls.List:SetLinkStyle(linkStyle)
     self.linkStyle = linkStyle
 end
 
-function List:SetMinQuality(quality)
+function lls.List:SetMinQuality(quality)
     self.minQuality = quality
 end
 
-function List:SetOptions(options, defaults)
+function lls.List:SetOptions(options, defaults)
     for field, default in pairs(defaults) do
         self[field] = coalesce(options[field], defaults[field])
     end
@@ -223,35 +231,39 @@ function List:SetOptions(options, defaults)
     end
 end
 
-function List:SetPrefix(prefix)
+function lls.List:SetPrefix(prefix)
     self.prefix = prefix
 end
 
-function List:SetShowIcon(showIcon)
+function lls.List:SetShowIcon(showIcon)
     self.showIcon = showIcon
 end
 
-function List:SetIconSize(size)
+function lls.List:SetIconSize(size)
     self.iconSize = size
 end
 
-function List:SetShowTrait(showTrait)
+function lls.List:SetShowTrait(showTrait)
     self.showTrait = showTrait
 end
 
-function List:SetSorted(sorted)
+function lls.List:SetShowNotCollected(showNotCollected)
+    self.showNotCollected = showNotCollected
+end
+
+function lls.List:SetSorted(sorted)
     self.sorted = sorted
 end
 
-function List:SetSortedByQuality(sortedByQuality)
+function lls.List:SetSortedByQuality(sortedByQuality)
     self.sortedByQuality = sortedByQuality
 end
 
-function List:SetSuffix(suffix)
+function lls.List:SetSuffix(suffix)
     self.suffix = suffix
 end
 
-function List:UseLibChatMessage(chat)
+function lls.List:UseLibChatMessage(chat)
     self.chat = chat
 end
 
@@ -323,6 +335,7 @@ DEFAULTS = {
     showIcon = false,
     iconSize = 90,
     showTrait = false,
+    showNotCollected = false,
     sorted = false,
     sortedByQuality = false,
     suffix = "",
@@ -350,6 +363,10 @@ end
 
 local function getTraits(self, savedVarChildTable, defaults)
     return coalesce(savedVarChildTable and savedVarChildTable.traits, savedVarChildTable and savedVarChildTable.showTrait, defaults.traits, defaults.showTrait)
+end
+
+local function getCollection(self, savedVarChildTable, defaults)
+    return coalesce(savedVarChildTable and savedVarChildTable.traits, savedVarChildTable and savedVarChildTable.showNotCollected, defaults.notCollected, defaults.showNotCollected)
 end
 
 function generateLam2EnabledOption(self, addonName, savedVarChildTable, defaults, name, tooltip)
@@ -483,7 +500,6 @@ function generateLam2TraitsOption(self, savedVarChildTable, defaults, name, tool
                 end,
             setFunc = 
                 function(value)
-                    
                     savedVarChildTable[defaults.traits ~= nil and "traits" or "showTrait"] = value
                     self:SetShowTrait(value)
                 end,
@@ -493,6 +509,36 @@ function generateLam2TraitsOption(self, savedVarChildTable, defaults, name, tool
                     return not getIsEnabled(self, savedVarChildTable, defaults)
                 end,
         }
+end
+function generateLam2CollectionOption(self, savedVarChildTable, defaults, name, tooltip)
+    return 
+        -- Show not collected piece
+        {
+            type = "checkbox",
+            name = GetString(name),
+            tooltip = GetString(tooltip),
+            getFunc =
+                function()
+                    return getCollection(self, savedVarChildTable, defaults)
+                end,
+            setFunc = 
+                function(value)
+                    savedVarChildTable[defaults.notCollected ~= nil and "notCollected" or "showNotCollected"] = value
+                    self:SetShowNotCollected(value)
+                end,
+            default = coalesce(defaults.notCollected, defaults.showNotCollected),
+            disabled =
+                function()
+                    return not getIsEnabled(self, savedVarChildTable, defaults)
+                end,
+        }
+end
+
+function isSetItemNotCollected(itemLink)
+    if not IsItemLinkSetCollectionPiece(itemLink) then return nil end
+    local setId = select(6, GetItemLinkSetInfo(itemLink, false))
+    local slot = GetItemLinkItemSetCollectionSlot(itemLink)
+    return not IsItemSetCollectionSlotUnlocked(setId, slot)
 end
 
 function mergeTables(table1, table2)

@@ -23,4 +23,8 @@ LLS_STRINGS = {
     ["SI_LLS_HIDE_ITEM_SINGLE_QTY_TOOLTIP"]    = "Quantities will only be printed to the right of item names that have a quantity greater than one.",
     ["SI_LLS_HIDE_LOOT_SINGLE_QTY"]            = "Hide Quantity for Single Items",
     ["SI_LLS_HIDE_LOOT_SINGLE_QTY_TOOLTIP"]    = "Quantities will only be printed to the right of loot names that have a quantity greater than one.",
+    ["SI_LLS_SHOW_ITEM_NOT_COLLECTED"]         = "Show Item not collected",
+    ["SI_LLS_SHOW_ITEM_NOT_COLLECTED_TOOLTIP"] = "Display icons to the right of item names if this item is not collected.",
+    ["SI_LLS_SHOW_LOOT_NOT_COLLECTED"]         = "Show Loot not collected",
+    ["SI_LLS_SHOW_LOOT_NOT_COLLECTED_TOOLTIP"] = "Display icons to the right of loot names if this item is not collected.",
 }

@@ -24,6 +24,10 @@ local strings = {
     ["SI_LLS_HIDE_ITEM_SINGLE_QTY_TOOLTIP"]    = "Verbirgt bei einzelnen Stücken die Mengenangabe hinter dem Namen des Gegenstandes.",
     ["SI_LLS_HIDE_LOOT_SINGLE_QTY"]            = "Anzahl einzelner erbeuteten Gegenstände",
     ["SI_LLS_HIDE_LOOT_SINGLE_QTY_TOOLTIP"]    = "Verbirgt bei einzelnen Stücken die Mengenangabe hinter dem Namen des erbeuteten Gegenstandes.",
+    ["SI_LLS_SHOW_ITEM_NOT_COLLECTED"]         = "Abbilder Sammlung",
+    ["SI_LLS_SHOW_ITEM_NOT_COLLECTED_TOOLTIP"] = "Zeigt hinter dem Namen ein Abbild, wenn der Gegenstand noch nicht gesammelt ist.",
+    ["SI_LLS_SHOW_LOOT_NOT_COLLECTED"]         = "Abbilder Sammlung ",
+    ["SI_LLS_SHOW_LOOT_NOT_COLLECTED_TOOLTIP"] = "Zeigt hinter dem Namen ein Abbild, wenn der erbeutete Gegenstand noch nicht gesammelt ist.",
 }
 
 for stringId, value in pairs(strings) do

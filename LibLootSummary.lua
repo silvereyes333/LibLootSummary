@@ -2,7 +2,7 @@
 -- Distributed under the MIT license (see LICENSE.txt)          --
 ------------------------------------------------------------------
 
-LibLootSummary = { version = "2.2.4" }
+LibLootSummary = { version = "3.0.0" }
 local lls = LibLootSummary
 
 --[[ Shortcut to creating a new LibLootSumary.List instance ]]--

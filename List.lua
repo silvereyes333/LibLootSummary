@@ -3,15 +3,17 @@ local lls = LibLootSummary
 local List = ZO_Object:Subclass()
 lls.List = List
 
-local addQuantity, appendText, coalesce, defaultChat, mergeTables, sortByCurrencyName, sortByItemName, sortByQuality, qualityChoices, qualityChoicesValues, isSetItemNotCollected
-local generateLam2EnabledOption, generateLam2QualityOption, generateLam2IconsOption, generateLam2IconSizeOption, generateLam2TraitsOption, generateLam2HideSingularOption, generateLam2CollectionOption
+local addQuantity, appendText, coalesce, defaultChat, getChildTable, mergeTables, sortByCurrencyName, sortByItemName, sortByQuality, isSetItemNotCollected
+local qualityChoices, qualityChoicesValues, delimiterChoices, delimiterChoicesValues
+local generateLam2EnabledOption, generateLam2QualityOption, generateLam2IconsOption, generateLam2CollectionOption, generateLam2IconSizeOption, generateLam2TraitsOption,
+      generateLam2HideSingularOption, generateLam2CombineDuplicatesOption, generateLam2SortOption, generateLam2DelimiterOption, generateLam2LinkStyleOption
 local GetItemLinkFunctionalQuality, ZO_CachedStrFormat, GetCurrencyName = GetItemLinkFunctionalQuality, ZO_CachedStrFormat, GetCurrencyName
-local zo_strgsub, zo_strlen, zo_min = zo_strgsub, zo_strlen, zo_min
+local zo_strgsub, zo_strlen, zo_min, zo_strformat = zo_strgsub, zo_strlen, zo_min, zo_strformat
 local tostring, pairs, ipairs = tostring, pairs, ipairs
-local tableInsert, stringFormat, tableSort = table.insert, string.format, table.sort
+local tableInsert, stringFormat, tableSort, stringFind = table.insert, string.format, table.sort, string.find
 local linkFormat = "|H%s:item:%s:1:1:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0|h|h"
-local collectionIcon = "EsoUI/Art/Collections/collections_tabIcon_itemSets_down.dds"
-local DEFAULTS
+local collectionIcon = "EsoUI/Art/treeicons/gamepad/achievement_categoryicon_collections.dds"
+local CHAT_DEFAULTS, OPTIONS_DEFAULTS, RENAMED_OPTIONS
 
 function lls.List:New(options)
     local instance = ZO_Object.New(self)
@@ -19,13 +21,22 @@ function lls.List:New(options)
     return instance
 end
 
-function lls.List:Initialize(options)
+function lls.List:Initialize(params)
     self:Reset()
+    if params == nil then
+        params = {}
+    end
+    for chatSetting, chatDefault in pairs(CHAT_DEFAULTS) do
+        self[chatSetting] = coalesce(params[chatSetting], chatDefault)
+    end
     
-    setmetatable(self.itemList, { __mode = "v" })
-    setmetatable(self.currencyList, { __mode = "v" })
-
-    self:SetOptions(options or {}, DEFAULTS)
+    -- Require a Print function in the chat proxy that is passed
+    if type(self.chat.Print) ~= "function" then
+        self.chat = CHAT_DEFAULTS.chat
+    end
+    
+    self.options = params
+    self.defaults = {}
 end
 
 function lls.List:AddCurrency(currencyType, quantity)
@@ -33,7 +44,7 @@ function lls.List:AddCurrency(currencyType, quantity)
         return
     end
 
-    addQuantity(self.currencyList, self.currencyKeys, currencyType, quantity, self.combineDuplicates)
+    addQuantity(self.currencyList, self.currencyKeys, currencyType, quantity, self:GetOption('combineDuplicates'))
 end
 function lls.List:AddItem(bagId, slotIndex, quantity)
     if not self:IsEnabled() then
@@ -45,14 +56,14 @@ function lls.List:AddItem(bagId, slotIndex, quantity)
         quantity = zo_min(stackSize, maxStackSize)
     end
 
-    self:AddItemLink(GetItemLink(bagId, slotIndex, self.linkStyle), quantity, true)
+    self:AddItemLink(GetItemLink(bagId, slotIndex, self:GetOption('linkStyle')), quantity, true)
 end
 function lls.List:AddItemId(itemId, quantity)
     if not self:IsEnabled() then
         return
     end
 
-    self:AddItemLink(stringFormat(linkFormat, self.linkStyle, itemId), quantity, true)
+    self:AddItemLink(stringFormat(linkFormat, self:GetOption('linkStyle'), itemId), quantity, true)
 end
 function lls.List:AddItemLink(itemLink, quantity, dontChangeStyle)
     if not self:IsEnabled() then
@@ -60,32 +71,52 @@ function lls.List:AddItemLink(itemLink, quantity, dontChangeStyle)
     end
 
     if not dontChangeStyle then
-        itemLink = zo_strgsub(itemLink, "|H[0-1]:", "|H"..tostring(self.linkStyle)..":")
+        itemLink = zo_strgsub(itemLink, "|H[0-1]:", "|H"..tostring(self:GetOption('linkStyle'))..":")
     end
 
-    addQuantity(self.itemList, self.itemKeys, itemLink, quantity, self.combineDuplicates)
+    addQuantity(self.itemList, self.itemKeys, itemLink, quantity, self:GetOption('combineDuplicates'))
 end
 
-function lls.List:GenerateLam2ItemOptions(addonName, savedVarChildTable, defaults)
-    defaults = mergeTables(defaults, DEFAULTS)
-    return generateLam2EnabledOption(self, addonName, savedVarChildTable, defaults, SI_LLS_ITEM_SUMMARY, SI_LLS_ITEM_SUMMARY_TOOLTIP),
-        generateLam2QualityOption(self, savedVarChildTable, defaults, SI_LLS_MIN_ITEM_QUALITY, SI_LLS_MIN_ITEM_QUALITY_TOOLTIP),
-        generateLam2IconsOption(self, savedVarChildTable, defaults, SI_LLS_SHOW_ITEM_ICONS, SI_LLS_SHOW_ITEM_ICONS_TOOLTIP),
-        generateLam2IconSizeOption(self, savedVarChildTable, defaults, SI_LLS_SHOW_ITEM_ICON_SIZE, SI_LLS_SHOW_ITEM_ICON_SIZE_TOOLTIP),
-        generateLam2TraitsOption(self, savedVarChildTable, defaults, SI_LLS_SHOW_ITEM_TRAITS, SI_LLS_SHOW_ITEM_TRAITS_TOOLTIP),
-        generateLam2CollectionOption(self, savedVarChildTable, defaults, SI_LLS_SHOW_ITEM_NOT_COLLECTED, SI_LLS_SHOW_ITEM_NOT_COLLECTED_TOOLTIP),
-        generateLam2HideSingularOption(self, savedVarChildTable, defaults, SI_LLS_HIDE_ITEM_SINGLE_QTY, SI_LLS_HIDE_ITEM_SINGLE_QTY_TOOLTIP)
+function lls.List:GenerateLam2ItemOptions(addonName, options, defaults, ...)
+    self:SetOptions(options, defaults, ...)
+    return generateLam2EnabledOption(self, addonName, SI_LLS_ITEM_SUMMARY, SI_LLS_ITEM_SUMMARY_TOOLTIP),
+        generateLam2QualityOption(self, SI_LLS_MIN_ITEM_QUALITY, SI_LLS_MIN_ITEM_QUALITY_TOOLTIP),
+        generateLam2IconsOption(self, SI_LLS_SHOW_ITEM_ICONS, SI_LLS_SHOW_ITEM_ICONS_TOOLTIP),
+        generateLam2CollectionOption(self, SI_LLS_SHOW_ITEM_NOT_COLLECTED, SI_LLS_SHOW_ITEM_NOT_COLLECTED_TOOLTIP),
+        generateLam2IconSizeOption(self),
+        generateLam2TraitsOption(self, SI_LLS_SHOW_ITEM_TRAITS, SI_LLS_SHOW_ITEM_TRAITS_TOOLTIP),
+        generateLam2HideSingularOption(self,  SI_LLS_HIDE_ITEM_SINGLE_QTY, SI_LLS_HIDE_ITEM_SINGLE_QTY_TOOLTIP),
+        generateLam2CombineDuplicatesOption(self),
+        generateLam2SortOption(self),
+        generateLam2DelimiterOption(self),
+        generateLam2LinkStyleOption(self)
 end
 
-function lls.List:GenerateLam2LootOptions(addonName, savedVarChildTable, defaults)
-    defaults = mergeTables(defaults, DEFAULTS)
-    return generateLam2EnabledOption(self, addonName, savedVarChildTable, defaults, SI_LLS_LOOT_SUMMARY, SI_LLS_LOOT_SUMMARY_TOOLTIP),
-        generateLam2QualityOption(self, savedVarChildTable, defaults, SI_LLS_MIN_LOOT_QUALITY, SI_LLS_MIN_LOOT_QUALITY_TOOLTIP),
-        generateLam2IconsOption(self, savedVarChildTable, defaults, SI_LLS_SHOW_LOOT_ICONS, SI_LLS_SHOW_LOOT_ICONS_TOOLTIP),
-        generateLam2IconSizeOption(self, savedVarChildTable, defaults, SI_LLS_SHOW_LOOT_ICON_SIZE, SI_LLS_SHOW_LOOT_ICON_SIZE_TOOLTIP),
-        generateLam2TraitsOption(self, savedVarChildTable, defaults, SI_LLS_SHOW_LOOT_TRAITS, SI_LLS_SHOW_LOOT_TRAITS_TOOLTIP),
-        generateLam2CollectionOption(self, savedVarChildTable, defaults, SI_LLS_SHOW_LOOT_NOT_COLLECTED, SI_LLS_SHOW_LOOT_NOT_COLLECTED_TOOLTIP),
-        generateLam2HideSingularOption(self, savedVarChildTable, defaults, SI_LLS_HIDE_LOOT_SINGLE_QTY, SI_LLS_HIDE_LOOT_SINGLE_QTY_TOOLTIP)
+function lls.List:GenerateLam2LootOptions(addonName, options, defaults, ...)
+    self:SetOptions(options, defaults, ...)
+    return generateLam2EnabledOption(self, addonName, SI_LLS_LOOT_SUMMARY, SI_LLS_LOOT_SUMMARY_TOOLTIP),
+        generateLam2QualityOption(self, SI_LLS_MIN_LOOT_QUALITY, SI_LLS_MIN_LOOT_QUALITY_TOOLTIP),
+        generateLam2IconsOption(self, SI_LLS_SHOW_LOOT_ICONS, SI_LLS_SHOW_LOOT_ICONS_TOOLTIP),
+        generateLam2CollectionOption(self, SI_LLS_SHOW_LOOT_NOT_COLLECTED, SI_LLS_SHOW_LOOT_NOT_COLLECTED_TOOLTIP),
+        generateLam2IconSizeOption(self),
+        generateLam2TraitsOption(self, SI_LLS_SHOW_LOOT_TRAITS, SI_LLS_SHOW_LOOT_TRAITS_TOOLTIP),
+        generateLam2HideSingularOption(self, SI_LLS_HIDE_LOOT_SINGLE_QTY, SI_LLS_HIDE_LOOT_SINGLE_QTY_TOOLTIP),
+        generateLam2CombineDuplicatesOption(self),
+        generateLam2SortOption(self),
+        generateLam2DelimiterOption(self),
+        generateLam2LinkStyleOption(self)
+end
+
+function lls.List:GetOption(key)
+    if OPTIONS_DEFAULTS[key] == nil then
+        return nil
+    end
+    if self.options and self.options[key] ~= nil then
+        return self.options[key]
+    end
+    if self.defaults then
+        return self.defaults[key]
+    end
 end
 
 --[[ Outputs a verbose summary of all loot and currency ]]
@@ -100,53 +131,59 @@ function lls.List:Print()
     local maxLength = (self.chat.maxCharsPerLine or 1200) - ZoUTF8StringLength(self.prefix) - ZoUTF8StringLength(self.suffix)
 
     -- Add items summary
-    if self.sortedByQuality then
+    if self:GetOption('sortedByQuality') then
         tableSort(self.itemKeys, sortByQuality)
-    elseif self.sorted then
+    elseif self:GetOption('sorted') then
         tableSort(self.itemKeys, sortByItemName)
     end
 
     local quality, quantities, countString, iconStringLength
     for _, itemLink in ipairs(self.itemKeys) do
         quality = GetItemLinkFunctionalQuality(itemLink)
-        if quality >= self.minQuality then
+        if quality >= self:GetOption('minQuality') then
             quantities = self.itemList[itemLink]
-            for _, quantity in ipairs(quantities) do
-                local itemString = itemLink
-                iconStringLength = 0
-                if self.showNotCollected and isSetItemNotCollected(itemLink) then
-                    local iconString = zo_iconFormat(collectionIcon, "120%", "120%")
-                    if not self.chat.isDefault then
-                        iconStringLength = string.len(iconString)
+            if not quantities then
+                self.chat:Print(itemLink)
+            end
+            if quantities then
+                for _, quantity in ipairs(quantities) do
+                    local itemString = itemLink
+                    iconStringLength = 0
+                    if self:GetOption('showNotCollected') and isSetItemNotCollected(itemLink) then
+                        local iconSize = stringFormat("%s%%", tostring(self:GetOption('iconSize')))
+                        local iconString = zo_iconFormatInheritColor(collectionIcon, iconSize, iconSize)
+                        if not self.chat.isDefault then
+                            iconStringLength = zo_strlen(iconString)
+                        end
+                        itemString = itemString .. iconString
                     end
-                    itemString = itemString .. iconString
-                end
-                if self.showTrait and GetItemLinkEquipType(itemLink) ~= EQUIP_TYPE_INVALID then
-                    local traitType = GetItemLinkTraitInfo(itemLink)
-                    if traitType and traitType > 0 then
-                        itemString = stringFormat("%s (%s)", itemString, GetString("SI_ITEMTRAITTYPE", traitType))
+                    if self:GetOption('showTrait') and GetItemLinkEquipType(itemLink) ~= EQUIP_TYPE_INVALID then
+                        local traitType = GetItemLinkTraitInfo(itemLink)
+                        if traitType and traitType > 0 then
+                            itemString = stringFormat("%s (%s)", itemString, GetString("SI_ITEMTRAITTYPE", traitType))
+                        end
                     end
-                end
-                if not self.hideSingularQuantities or quantity > 1 then
-                    countString = ZO_CachedStrFormat(GetString(SI_HOOK_POINT_STORE_REPAIR_KIT_COUNT), quantity)
-                    itemString = stringFormat("%s %s", itemString, countString)
-                end
-                local iconStringLength = 0
-                if self.showIcon then
-                    local iconSize = stringFormat("%s%%", tostring(self.iconSize))
-                    local iconString = zo_iconFormat(GetItemLinkIcon(itemLink), iconSize, iconSize)
-                    if not self.chat.isDefault then
-                        iconStringLength = iconStringLength + zo_strlen(iconString)
+                    if not self:GetOption('hideSingularQuantities') or quantity > 1 then
+                        countString = ZO_CachedStrFormat(GetString(SI_HOOK_POINT_STORE_REPAIR_KIT_COUNT), quantity)
+                        itemString = stringFormat("%s %s", itemString, countString)
                     end
-                    itemString = iconString .. itemString
+                    local iconStringLength = 0
+                    if self:GetOption('showIcon') then
+                        local iconSize = stringFormat("%s%%", tostring(self:GetOption('iconSize')))
+                        local iconString = zo_iconFormat(GetItemLinkIcon(itemLink), iconSize, iconSize)
+                        if not self.chat.isDefault then
+                            iconStringLength = iconStringLength + zo_strlen(iconString)
+                        end
+                        itemString = iconString .. itemString
+                    end
+                    summary = appendText(itemString, summary, maxLength, lines, self:GetOption('delimiter'), self.prefix, iconStringLength)
                 end
-                summary = appendText(itemString, summary, maxLength, lines, self.delimiter, self.prefix, iconStringLength)
             end
         end
     end
 
     -- Add money summary
-    if self.sorted then
+    if self:GetOption('sorted') then
         tableSort(self.currencyKeys, sortByCurrencyName)
     end
 
@@ -157,14 +194,14 @@ function lls.List:Print()
             countString = quantity > 0 and ZO_CachedStrFormat(GetString(SI_HOOK_POINT_STORE_REPAIR_KIT_COUNT), quantity) or tostring(quantity)
             moneyString = stringFormat("%s %s", moneyString, countString)
             iconStringLength = 0
-            if self.showIcon then
+            if self:GetOption('showIcon') then
                 local currencyIcon = ZO_Currency_GetPlatformFormattedCurrencyIcon(currencyType)
                 if not self.chat.isDefault then
                     iconStringLength = zo_strlen(currencyIcon)
                 end
                 moneyString = currencyIcon .. moneyString
             end
-            summary = appendText(moneyString, summary, maxLength, lines, self.delimiter, self.prefix, iconStringLength)
+            summary = appendText(moneyString, summary, maxLength, lines, self:GetOption('delimiter'), self.prefix, iconStringLength)
         end
     end
 
@@ -176,7 +213,6 @@ function lls.List:Print()
     -- Print to chat
     for i, line in ipairs(lines) do
         self.chat:Print(self.prefix .. line .. self.suffix)
-        lines[i] = nil -- to allow collect garbage
     end
 
     self:Reset()
@@ -187,48 +223,97 @@ function lls.List:Reset()
     self.itemKeys = {}
     self.currencyList = {}
     self.currencyKeys = {}
+    setmetatable(self.itemList, { __mode = "v" })
+    setmetatable(self.currencyList, { __mode = "v" })
 end
 
 function lls.List:SetCombineDuplicates(combineDuplicates)
-    self.combineDuplicates = combineDuplicates
+    self:SetOption('combineDuplicates', combineDuplicates)
 end
 
 function lls.List:SetDelimiter(delimiter)
-    self.delimiter = delimiter
+    self:SetOption('delimiter', delimiter)
 end
 
 function lls.List:SetEnabled(enabled)
-    self.enabled = enabled
+    self:SetOption('enabled', enabled)
 end
 
 function lls.List:IsEnabled()
-    return self.enabled
+    return self:GetOption('enabled')
 end
 
 function lls.List:SetHideSingularQuantities(hideSingularQuantities)
-    self.hideSingularQuantities = hideSingularQuantities
+    self:SetOption('hideSingularQuantities', hideSingularQuantities)
 end
 
 function lls.List:SetLinkStyle(linkStyle)
-    self.linkStyle = linkStyle
+    self:SetOption('linkStyle', linkStyle)
 end
 
 function lls.List:SetMinQuality(quality)
-    self.minQuality = quality
+    self:SetOption('minQuality', quality)
 end
 
-function lls.List:SetOptions(options, defaults)
-    for field, default in pairs(defaults) do
-        self[field] = coalesce(options[field], defaults[field])
+function lls.List:SetOption(key, value)
+    if OPTIONS_DEFAULTS[key] ~= nil then
+        self.options[key] = value
     end
-    if not defaults.chat then
-        return
+end
+
+function lls.List:SetOptions(options, defaults, ...)
+    if defaults == nil then
+        defaults = {}
     end
-    if options.chat and type(options.chat.Print) == "function" then
-        self.chat = options.chat
-    else
-        self.chat = defaults.chat
+    local optionsKeys = {...}
+    if #optionsKeys > 0 then
+        defaults = getChildTable(defaults, optionsKeys)
+        local parent = options
+        options = getChildTable(parent, optionsKeys)
+        options = setmetatable({},
+            {
+                __index = function(_, key)
+                    local childTable = getChildTable(parent, optionsKeys)
+                    return childTable[key]
+                end,
+                __newindex = function(_, key, value)
+                    local childTable = getChildTable(parent, optionsKeys)
+                    childTable[key] = value
+                end,
+            })
     end
+    
+    for oldField, newField in pairs(RENAMED_OPTIONS) do
+        if defaults[oldField] ~= nil then
+            defaults[newField] = defaults[oldField]
+            defaults[oldField] = nil
+        end
+        if options[oldField] ~= nil then
+            if options[newField] == nil then
+                options[newField] = options[oldField]
+            end
+            options[oldField] = nil
+        end
+    end
+    
+    defaults = mergeTables(defaults, OPTIONS_DEFAULTS)
+    
+    -- Carry over options from the constructor, if any were passed there
+    for field, _ in pairs(OPTIONS_DEFAULTS) do
+        if options[field] == nil then
+            options[field] = self.options[field]
+        end
+    end
+    
+    -- Initialize values if not yet done
+    for field, defaultValue in pairs(defaults) do
+        if options[field] == nil then
+            options[field] = defaultValue
+        end
+    end
+    
+    self.options = options
+    self.defaults = defaults
 end
 
 function lls.List:SetPrefix(prefix)
@@ -236,27 +321,27 @@ function lls.List:SetPrefix(prefix)
 end
 
 function lls.List:SetShowIcon(showIcon)
-    self.showIcon = showIcon
+    self:SetOption('showIcon', showIcon)
 end
 
-function lls.List:SetIconSize(size)
-    self.iconSize = size
+function lls.List:SetIconSize(iconSize)
+    self:SetOption('iconSize', iconSize)
 end
 
 function lls.List:SetShowTrait(showTrait)
-    self.showTrait = showTrait
+    self:SetOption('showTrait', showTrait)
 end
 
 function lls.List:SetShowNotCollected(showNotCollected)
-    self.showNotCollected = showNotCollected
+    self:SetOption('showNotCollected', showNotCollected)
 end
 
 function lls.List:SetSorted(sorted)
-    self.sorted = sorted
+    self:SetOption('sorted', sorted)
 end
 
 function lls.List:SetSortedByQuality(sortedByQuality)
-    self.sortedByQuality = sortedByQuality
+    self:SetOption('sortedByQuality', sortedByQuality)
 end
 
 function lls.List:SetSuffix(suffix)
@@ -293,7 +378,7 @@ function appendText(text, currentText, maxLength, lines, delimiter, prefix, icon
     if stringLength > maxLength then
         tableInsert(lines, currentText)
         currentText = ""
-    elseif currentTextLength > ZoUTF8StringLength(prefix) then
+    elseif currentTextLength > ZoUTF8StringLength(prefix) or stringFind(delimiter, "^\n") then
         currentText = currentText .. delimiter
     end
     currentText = currentText .. text
@@ -323,117 +408,97 @@ function defaultChat:Print(message)
     end
 end
 
-DEFAULTS = {
-    chat = defaultChat:New(),
-    combineDuplicates = true,
-    delimiter = " ",
-    hideSingularQuantities = false,
+OPTIONS_DEFAULTS = {
     enabled = true,
-    linkStyle = LINK_STYLE_DEFAULT,
     minQuality = ITEM_FUNCTIONAL_QUALITY_MIN_VALUE,
-    prefix = "",
     showIcon = false,
     iconSize = 90,
     showTrait = false,
     showNotCollected = false,
+    combineDuplicates = true,
+    hideSingularQuantities = false,
+    delimiter = " ",
+    linkStyle = LINK_STYLE_DEFAULT,
     sorted = false,
     sortedByQuality = false,
+}
+
+CHAT_DEFAULTS = {
+    chat = defaultChat:New(),
+    prefix = "",
     suffix = "",
 }
 
-local function getIcons(self, savedVarChildTable, defaults)
-    return coalesce(savedVarChildTable and savedVarChildTable.icons, savedVarChildTable and savedVarChildTable.showIcon, defaults.icons, defaults.showIcon)
-end
+RENAMED_OPTIONS = {
+    traits = 'showTrait',
+    icons = 'showIcon',
+}
 
-local function getIconSize(self, savedVarChildTable, defaults)
-    return coalesce(savedVarChildTable and savedVarChildTable.iconSize, defaults.iconSize)
-end
-
-local function getHideSingularQuantities(self, savedVarChildTable, defaults)
-    return coalesce(savedVarChildTable and savedVarChildTable.hideSingularQuantities, defaults.hideSingularQuantities)
-end
-
-local function getIsEnabled(self, savedVarChildTable, defaults)
-    return coalesce(savedVarChildTable and savedVarChildTable.enabled, defaults.enabled)
-end
-
-local function getMinQuality(self, savedVarChildTable, defaults)
-    return coalesce(savedVarChildTable and savedVarChildTable.minQuality, defaults.minQuality)
-end
-
-local function getTraits(self, savedVarChildTable, defaults)
-    return coalesce(savedVarChildTable and savedVarChildTable.traits, savedVarChildTable and savedVarChildTable.showTrait, defaults.traits, defaults.showTrait)
-end
-
-local function getCollection(self, savedVarChildTable, defaults)
-    return coalesce(savedVarChildTable and savedVarChildTable.traits, savedVarChildTable and savedVarChildTable.showNotCollected, defaults.notCollected, defaults.showNotCollected)
-end
-
-function generateLam2EnabledOption(self, addonName, savedVarChildTable, defaults, name, tooltip)
+function generateLam2EnabledOption(self, addonName, name, tooltip)
     return 
         -- Enabled
         {
             type = "checkbox",
             name = GetString(name),
             tooltip = zo_strformat(tooltip, addonName),
-            getFunc = function()
-                return getIsEnabled(self, savedVarChildTable, defaults)
-            end,
-            setFunc = 
-                function(value)
-                    savedVarChildTable.enabled = value
-                    self:SetEnabled(value)
-                end,
-            default = defaults.enabled,
+            getFunc = function() return self:IsEnabled() end,
+            setFunc = function(value) self:SetEnabled(value) end,
+            default = self.defaults.enabled,
         }
 end
-function generateLam2HideSingularOption(self, savedVarChildTable, defaults, name, tooltip)
+function generateLam2HideSingularOption(self, name, tooltip)
     return 
         -- HideSingularQuantities
         {
             type = "checkbox",
             name = GetString(name),
             tooltip = GetString(tooltip),
-            getFunc =
-                function()
-                    return getHideSingularQuantities(self, savedVarChildTable, defaults)
-                end,
-            setFunc = 
-                function(value)
-                    savedVarChildTable.hideSingularQuantities = value
-                    self:SetHideSingularQuantities(value)
-                end,
-            default = defaults.hideSingularQuantities,
-            disabled =
-                function()
-                    return not getIsEnabled(self, savedVarChildTable, defaults)
-                end,
+            getFunc = function() return self:GetOption('hideSingularQuantities') end,
+            setFunc = function(value) self:SetHideSingularQuantities(value) end,
+            default = self.defaults.hideSingularQuantities,
+            disabled = function() return not self:IsEnabled() end,
         }
 end
-function generateLam2IconsOption(self, savedVarChildTable, defaults, name, tooltip)
+function generateLam2CombineDuplicatesOption(self)
+    return 
+        -- Combine duplicates
+        {
+            type = "checkbox",
+            name = GetString(SI_LLS_COMBINE_DUPLICATES),
+            tooltip = GetString(SI_LLS_COMBINE_DUPLICATES_TOOLTIP),
+            getFunc = function() return self:GetOption('combineDuplicates') end,
+            setFunc = function(value) self:SetCombineDuplicates(value) end,
+            default = self.defaults.combineDuplicates,
+            disabled = function() return not self:IsEnabled() end,
+        }
+end
+function generateLam2IconsOption(self, name, tooltip)
     return 
         -- Show Icons
         {
             type = "checkbox",
             name = GetString(name),
             tooltip = GetString(tooltip),
-            getFunc = 
-                function()
-                    return getIcons(self, savedVarChildTable, defaults)
-                end,
-            setFunc = 
-                function(value)
-                    savedVarChildTable[defaults.icons ~= nil and "icons" or "showIcon"] = value
-                    self:SetShowIcon(value)
-                end,
-            default = coalesce(defaults.icons, defaults.showIcon),
-            disabled =
-                function()
-                    return not getIsEnabled(self, savedVarChildTable, defaults)
-                end,
+            getFunc = function() return self:GetOption('showIcon') end,
+            setFunc = function(value) self:SetShowIcon(value) end,
+            default = self.defaults.showIcon,
+            disabled = function() return not self:IsEnabled() end,
         }
 end
-function generateLam2IconSizeOption(self, savedVarChildTable, defaults, name, tooltip)
+function generateLam2CollectionOption(self, name, tooltip)
+    return 
+        -- Show not collected piece
+        {
+            type = "checkbox",
+            name = zo_strformat(GetString(name), zo_iconFormat(collectionIcon, '120%', '120%')),
+            tooltip = GetString(tooltip),
+            getFunc = function() return self:GetOption('showNotCollected') end,
+            setFunc = function(value) self:SetShowNotCollected(value) end,
+            default = self.defaults.showNotCollected,
+            disabled = function() return not self:IsEnabled() end,
+        }
+end
+function generateLam2IconSizeOption(self)
     return 
         -- Set icons size
         {
@@ -443,25 +508,20 @@ function generateLam2IconSizeOption(self, savedVarChildTable, defaults, name, to
             step = 10,
             decimals = 0,
             clampInput = true,
-            name = GetString(name),
-            tooltip = GetString(tooltip),
-            getFunc = 
+            name = GetString(SI_LLS_ICON_SIZE),
+            tooltip = GetString(SI_LLS_ICON_SIZE_TOOLTIP),
+            getFunc = function() return self:GetOption('iconSize') end,
+            setFunc = function(value) self:SetIconSize(value) end,
+            default = self.defaults.iconSize,
+            disabled =
                 function()
-                    return getIconSize(self, savedVarChildTable, defaults)
-                end,
-            setFunc = 
-                function(value)
-                    savedVarChildTable.iconSize = value
-                    self:SetIconSize(value)
-                end,
-            default = defaults.iconSize,
-            disabled = 
-                function()
-                    return not getIsEnabled(self, savedVarChildTable, defaults) or not getIcons(self, savedVarChildTable, defaults)
+                    return not self:IsEnabled() 
+                           or (not self:GetOption('showIcon') 
+                               and not self:GetOption('showNotCollected'))
                 end,
         }
 end
-function generateLam2QualityOption(self, savedVarChildTable, defaults, name, tooltip)
+function generateLam2QualityOption(self, name, tooltip)
     return 
         -- Minimum Quality
         {
@@ -471,67 +531,115 @@ function generateLam2QualityOption(self, savedVarChildTable, defaults, name, too
             sort = "numericvalue-up",
             name = GetString(name),
             tooltip = GetString(tooltip),
-            getFunc =
-                function()
-                    return getMinQuality(self, savedVarChildTable, defaults)
-                end,
-            setFunc = 
-                function(value)
-                    savedVarChildTable.minQuality = value
-                    self:SetMinQuality(value)
-                end,
-            default = defaults.minQuality,
-            disabled =
-                function()
-                    return not getIsEnabled(self, savedVarChildTable, defaults)
-                end,
+            getFunc = function() return self:GetOption('minQuality') end,
+            setFunc = function(value) self:SetMinQuality(value) end,
+            default = self.defaults.minQuality,
+            disabled = function() return not self:IsEnabled() end,
         }
 end
-function generateLam2TraitsOption(self, savedVarChildTable, defaults, name, tooltip)
+function generateLam2TraitsOption(self, name, tooltip)
     return 
         -- Show Traits
         {
             type = "checkbox",
             name = GetString(name),
             tooltip = GetString(tooltip),
-            getFunc =
-                function()
-                    return getTraits(self, savedVarChildTable, defaults)
-                end,
-            setFunc = 
-                function(value)
-                    savedVarChildTable[defaults.traits ~= nil and "traits" or "showTrait"] = value
-                    self:SetShowTrait(value)
-                end,
-            default = coalesce(defaults.traits, defaults.showTrait),
-            disabled =
-                function()
-                    return not getIsEnabled(self, savedVarChildTable, defaults)
-                end,
+            getFunc = function() return self:GetOption('showTrait') end,
+            setFunc = function(value) self:SetShowTrait(value) end,
+            default = self.defaults.showTrait,
+            disabled = function() return not self:IsEnabled() end,
         }
 end
-function generateLam2CollectionOption(self, savedVarChildTable, defaults, name, tooltip)
+function generateLam2SortOption(self)
     return 
-        -- Show not collected piece
+        -- Sort order
         {
-            type = "checkbox",
-            name = GetString(name),
-            tooltip = GetString(tooltip),
+            type = "dropdown",
+            name = GetString(SI_GAMEPAD_BANK_SORT_ORDER_HEADER),
+            tooltip = GetString(SI_LLS_SORT_ORDER_TOOLTIP),
+            choices =
+                {
+                    ZO_GenerateCommaSeparatedListWithoutAnd({
+                        GetString('SI_TRADINGHOUSEFEATURECATEGORY', TRADING_HOUSE_FEATURE_CATEGORY_QUALITY),
+                        GetString('SI_TRADINGHOUSELISTINGSORTTYPE', TRADING_HOUSE_LISTING_SORT_TYPE_NAME) }
+                    ),
+                    GetString('SI_TRADINGHOUSELISTINGSORTTYPE', TRADING_HOUSE_LISTING_SORT_TYPE_NAME),
+                    GetString(SI_ITEMTYPE0)
+                },
+            choicesValues =
+                {
+                    'quality',
+                    'name',
+                    'none'
+                },
             getFunc =
                 function()
-                    return getCollection(self, savedVarChildTable, defaults)
+                    return self:GetOption('sortedByQuality') and 'quality'
+                           or self:GetOption('sorted') and 'name'
+                           or 'none'
                 end,
             setFunc = 
                 function(value)
-                    savedVarChildTable[defaults.notCollected ~= nil and "notCollected" or "showNotCollected"] = value
-                    self:SetShowNotCollected(value)
+                    if value == 'quality' then
+                        self:SetSortedByQuality(true)
+                        self:SetSorted(false)
+                    elseif value == 'name' then
+                        self:SetSorted(true)
+                        self:SetSortedByQuality(false)
+                    else
+                        self:SetSorted(false)
+                        self:SetSortedByQuality(false)
+                    end
                 end,
-            default = coalesce(defaults.notCollected, defaults.showNotCollected),
-            disabled =
-                function()
-                    return not getIsEnabled(self, savedVarChildTable, defaults)
-                end,
+            default = self.defaults.sortedByQuality and 'quality' or self.defaults.sorted and 'name' or 'none',
+            disabled = function() return not self:IsEnabled() end,
         }
+end
+function generateLam2DelimiterOption(self)
+    return 
+        -- delimiter
+        {
+            type = "dropdown",
+            name = GetString(SI_LLS_DELIMITER),
+            tooltip = GetString(SI_LLS_DELIMITER_TOOLTIP),
+            choices = delimiterChoices,
+            choicesValues = delimiterChoicesValues,
+            getFunc = function() return self:GetOption('delimiter') end,
+            setFunc = function(value) self:SetDelimiter(value) end,
+            default = self.defaults.delimiter,
+            disabled = function() return not self:IsEnabled() end,
+        }
+end
+function generateLam2LinkStyleOption(self)
+    return 
+        -- delimiter
+        {
+            type = "dropdown",
+            name = GetString(SI_LLS_LINK_STYLE),
+            tooltip = GetString(SI_LLS_LINK_STYLE_TOOLTIP),
+            choices =
+                {
+                    stringFormat(linkFormat, LINK_STYLE_BRACKETS, 54172),
+                    stringFormat(linkFormat, LINK_STYLE_DEFAULT, 54172),
+                },
+            choicesValues =
+                {
+                    LINK_STYLE_BRACKETS,
+                    LINK_STYLE_DEFAULT
+                },
+            getFunc = function() return self:GetOption('linkStyle') end,
+            setFunc = function(value) self:SetLinkStyle(value) end,
+            default = self.defaults.linkStyle,
+            disabled = function() return not self:IsEnabled() end,
+        }
+end
+
+function getChildTable(parent, childPath)
+    local childTable = parent
+    for _, key in ipairs(childPath) do
+        childTable = childTable[key]
+    end
+    return childTable
 end
 
 function isSetItemNotCollected(itemLink)
@@ -576,4 +684,26 @@ for quality = ITEM_FUNCTIONAL_QUALITY_MIN_VALUE, ITEM_FUNCTIONAL_QUALITY_MAX_VAL
     local qualityString = qualityColor:Colorize(GetString("SI_ITEMQUALITY", quality))
     tableInsert(qualityChoicesValues, quality)
     tableInsert(qualityChoices, qualityString)
+end
+
+
+delimiterChoicesValues = {
+    " ",
+    "   ",
+    ", ",
+    " * ",
+    "; ",
+    "\n",
+    "\n• ",
+    "\n- ",
+    "\n+ ",
+    "\n* ",
+    "、",
+    "・",
+}
+
+delimiterChoices = { }
+for _, delimiterChoice in ipairs(delimiterChoicesValues) do
+    delimiterChoice = zo_strgsub(delimiterChoice, "\n", "\\n")
+    table.insert(delimiterChoices, zo_strformat(GetString(SI_LLS_QUOTES), delimiterChoice))
 end

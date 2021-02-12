@@ -1,69 +1,74 @@
 local lls = LibLootSummary
-local GetItemLinkQuality = GetItemLinkFunctionalQuality or GetItemLinkQuality
 
-lls.List = ZO_Object:Subclass()
+local List = ZO_Object:Subclass()
+lls.List = List
 
 local addQuantity, appendText, coalesce, defaultChat, mergeTables, sortByCurrencyName, sortByItemName, sortByQuality, qualityChoices, qualityChoicesValues
 local generateLam2EnabledOption, generateLam2QualityOption, generateLam2IconsOption, generateLam2IconSizeOption, generateLam2TraitsOption, generateLam2HideSingularOption
+local GetItemLinkFunctionalQuality, ZO_CachedStrFormat, GetCurrencyName = GetItemLinkFunctionalQuality, ZO_CachedStrFormat, GetCurrencyName
+local zo_strgsub, zo_strlen, zo_min = zo_strgsub, zo_strlen, zo_min
+local tostring, pairs, ipairs = tostring, pairs, ipairs
+local tableInsert, stringFormat, tableSort = table.insert, string.format, table.sort
 local linkFormat = "|H%s:item:%s:1:1:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0|h|h"
 local DEFAULTS
 
-function lls.List:New(...)
+function List:New(options)
     local instance = ZO_Object.New(self)
-    instance:Initialize(...)
+    instance:Initialize(options)
     return instance
 end
 
-function lls.List:Initialize(options)
-    if not options then
-        options = {}
-    end
+function List:Initialize(options)
+    self.itemList = {}
+    self.itemKeys = {}
+    self.currencyList = {}
+    self.currencyKeys = {}
 
-    self:Reset()
+    setmetatable(self.itemList, { __mode = "v" })
+    setmetatable(self.currencyList, { __mode = "v" })
 
-    self:SetOptions(options, DEFAULTS)
+    self:SetOptions(options or {}, DEFAULTS)
 end
 
-function lls.List:AddCurrency(currencyType, quantity)
-    if not self.enabled then
+function List:AddCurrency(currencyType, quantity)
+    if not self:IsEnabled() then
         return
     end
 
     addQuantity(self.currencyList, self.currencyKeys, currencyType, quantity, self.combineDuplicates)
 end
-function lls.List:AddItem(bagId, slotIndex, quantity)
-    if not self.enabled then
+function List:AddItem(bagId, slotIndex, quantity)
+    if not self:IsEnabled() then
         return
     end
 
-    local itemLink = GetItemLink(bagId, slotIndex, self.linkStyle)
     if not quantity then
         local stackSize, maxStackSize = GetSlotStackSize(bagId, slotIndex)
-        quantity = math.min(stackSize, maxStackSize)
+        quantity = zo_min(stackSize, maxStackSize)
     end
-    self:AddItemLink(itemLink, quantity, true)
+
+    self:AddItemLink(GetItemLink(bagId, slotIndex, self.linkStyle), quantity, true)
 end
-function lls.List:AddItemId(itemId, quantity)
-    if not self.enabled then
+function List:AddItemId(itemId, quantity)
+    if not self:IsEnabled() then
         return
     end
 
-    local itemLink = string.format(linkFormat, self.linkStyle, itemId)
-    self:AddItemLink(itemLink, quantity, true)
+    self:AddItemLink(stringFormat(linkFormat, self.linkStyle, itemId), quantity, true)
 end
-function lls.List:AddItemLink(itemLink, quantity, dontChangeStyle)
-    if not self.enabled then
+function List:AddItemLink(itemLink, quantity, dontChangeStyle)
+    if not self:IsEnabled() then
         return
     end
 
     if not dontChangeStyle then
-        itemLink = string.gsub(itemLink, "|H[0-1]:", "|H"..tostring(self.linkStyle)..":")
+        itemLink = zo_strgsub(itemLink, "|H[0-1]:", "|H"..tostring(self.linkStyle)..":")
     end
 
     addQuantity(self.itemList, self.itemKeys, itemLink, quantity, self.combineDuplicates)
 end
 
-function lls.List:GenerateLam2ItemOptions(addonName, savedVarChildTable, defaults)
+function List:GenerateLam2ItemOptions(addonName, savedVarChildTable, defaults)
     defaults = mergeTables(defaults, DEFAULTS)
     return generateLam2EnabledOption(self, addonName, savedVarChildTable, defaults, SI_LLS_ITEM_SUMMARY, SI_LLS_ITEM_SUMMARY_TOOLTIP),
         generateLam2QualityOption(self, savedVarChildTable, defaults, SI_LLS_MIN_ITEM_QUALITY, SI_LLS_MIN_ITEM_QUALITY_TOOLTIP),
@@ -73,7 +78,7 @@ function lls.List:GenerateLam2ItemOptions(addonName, savedVarChildTable, default
         generateLam2HideSingularOption(self, savedVarChildTable, defaults, SI_LLS_HIDE_ITEM_SINGLE_QTY, SI_LLS_HIDE_ITEM_SINGLE_QTY_TOOLTIP)
 end
 
-function lls.List:GenerateLam2LootOptions(addonName, savedVarChildTable, defaults)
+function List:GenerateLam2LootOptions(addonName, savedVarChildTable, defaults)
     defaults = mergeTables(defaults, DEFAULTS)
     return generateLam2EnabledOption(self, addonName, savedVarChildTable, defaults, SI_LLS_LOOT_SUMMARY, SI_LLS_LOOT_SUMMARY_TOOLTIP),
         generateLam2QualityOption(self, savedVarChildTable, defaults, SI_LLS_MIN_LOOT_QUALITY, SI_LLS_MIN_LOOT_QUALITY_TOOLTIP),
@@ -84,9 +89,9 @@ function lls.List:GenerateLam2LootOptions(addonName, savedVarChildTable, default
 end
 
 --[[ Outputs a verbose summary of all loot and currency ]]
-function lls.List:Print()
+function List:Print()
 
-    if not self.enabled then
+    if not self:IsEnabled() then
         return
     end
 
@@ -96,32 +101,34 @@ function lls.List:Print()
 
     -- Add items summary
     if self.sortedByQuality then
-        table.sort(self.itemKeys, sortByQuality)
+        tableSort(self.itemKeys, sortByQuality)
     elseif self.sorted then
-        table.sort(self.itemKeys, sortByItemName)
+        tableSort(self.itemKeys, sortByItemName)
     end
+
+    local quality, quantities, countString, iconStringLength
     for _, itemLink in ipairs(self.itemKeys) do
-        local quality = GetItemLinkQuality(itemLink)
+        quality = GetItemLinkFunctionalQuality(itemLink)
         if quality >= self.minQuality then
-            local quantities = self.itemList[itemLink]
+            quantities = self.itemList[itemLink]
             for _, quantity in ipairs(quantities) do
                 local itemString = itemLink
                 if self.showTrait and GetItemLinkEquipType(itemLink) ~= EQUIP_TYPE_INVALID then
                     local traitType = GetItemLinkTraitInfo(itemLink)
                     if traitType and traitType > 0 then
-                        itemString = string.format("%s (%s)", itemString, GetString("SI_ITEMTRAITTYPE", traitType))
+                        itemString = stringFormat("%s (%s)", itemString, GetString("SI_ITEMTRAITTYPE", traitType))
                     end
                 end
                 if not self.hideSingularQuantities or quantity > 1 then
-                    local countString = zo_strformat(GetString(SI_HOOK_POINT_STORE_REPAIR_KIT_COUNT), quantity)
-                    itemString = string.format("%s %s", itemString, countString)
+                    local countString = ZO_CachedStrFormat(GetString(SI_HOOK_POINT_STORE_REPAIR_KIT_COUNT), quantity)
+                    itemString = stringFormat("%s %s", itemString, countString)
                 end
-                local iconStringLength = 0
+                iconStringLength = 0
                 if self.showIcon then
-                    local iconSize = string.format("%s%%", tostring(self.iconSize))
+                    local iconSize = stringFormat("%s%%", tostring(self.iconSize))
                     local iconString = zo_iconFormat(GetItemLinkIcon(itemLink), iconSize, iconSize)
                     if not self.chat.isDefault then
-                        iconStringLength = string.len(iconString)
+                        iconStringLength = zo_strlen(iconString)
                     end
                     itemString = iconString .. itemString
                 end
@@ -132,19 +139,20 @@ function lls.List:Print()
 
     -- Add money summary
     if self.sorted then
-        table.sort(self.currencyKeys, sortByCurrencyName)
+        tableSort(self.currencyKeys, sortByCurrencyName)
     end
+
     for _, currencyType in ipairs(self.currencyKeys) do
-        local quantities = self.currencyList[currencyType]
+        quantities = self.currencyList[currencyType]
         for _, quantity in ipairs(quantities) do
             local moneyString = GetCurrencyName(currencyType, IsCountSingularForm(quantity))
-            local countString = quantity > 0 and zo_strformat(GetString(SI_HOOK_POINT_STORE_REPAIR_KIT_COUNT), quantity) or tostring(quantity)
-            moneyString = string.format("%s %s", moneyString, countString)
-            local iconStringLength = 0
+            countString = quantity > 0 and ZO_CachedStrFormat(GetString(SI_HOOK_POINT_STORE_REPAIR_KIT_COUNT), quantity) or tostring(quantity)
+            moneyString = stringFormat("%s %s", moneyString, countString)
+            iconStringLength = 0
             if self.showIcon then
                 local currencyIcon = ZO_Currency_GetPlatformFormattedCurrencyIcon(currencyType)
                 if not self.chat.isDefault then
-                    iconStringLength = string.len(currencyIcon)
+                    iconStringLength = zo_strlen(currencyIcon)
                 end
                 moneyString = currencyIcon .. moneyString
             end
@@ -154,49 +162,54 @@ function lls.List:Print()
 
     -- Append last line
     if ZoUTF8StringLength(summary) > ZoUTF8StringLength(self.prefix) then
-        table.insert(lines, summary)
+        tableInsert(lines, summary)
     end
 
     -- Print to chat
-    for _, line in ipairs(lines) do
+    for i, line in ipairs(lines) do
         self.chat:Print(self.prefix .. line .. self.suffix)
+        lines[i] = nil -- to allow collect garbage
     end
 
     self:Reset()
 end
 
-function lls.List:Reset()
+function List:Reset()
     self.itemList = {}
     self.itemKeys = {}
     self.currencyList = {}
     self.currencyKeys = {}
 end
 
-function lls.List:SetCombineDuplicates(combineDuplicates)
+function List:SetCombineDuplicates(combineDuplicates)
     self.combineDuplicates = combineDuplicates
 end
 
-function lls.List:SetDelimiter(delimiter)
+function List:SetDelimiter(delimiter)
     self.delimiter = delimiter
 end
 
-function lls.List:SetEnabled(enabled)
+function List:SetEnabled(enabled)
     self.enabled = enabled
 end
 
-function lls.List:SetHideSingularQuantities(hideSingularQuantities)
+function List:IsEnabled()
+    return self.enabled
+end
+
+function List:SetHideSingularQuantities(hideSingularQuantities)
     self.hideSingularQuantities = hideSingularQuantities
 end
 
-function lls.List:SetLinkStyle(linkStyle)
+function List:SetLinkStyle(linkStyle)
     self.linkStyle = linkStyle
 end
 
-function lls.List:SetMinQuality(quality)
+function List:SetMinQuality(quality)
     self.minQuality = quality
 end
 
-function lls.List:SetOptions(options, defaults)
+function List:SetOptions(options, defaults)
     for field, default in pairs(defaults) do
         self[field] = coalesce(options[field], defaults[field])
     end
@@ -210,35 +223,35 @@ function lls.List:SetOptions(options, defaults)
     end
 end
 
-function lls.List:SetPrefix(prefix)
+function List:SetPrefix(prefix)
     self.prefix = prefix
 end
 
-function lls.List:SetShowIcon(showIcon)
+function List:SetShowIcon(showIcon)
     self.showIcon = showIcon
 end
 
-function lls.List:SetIconSize(size)
+function List:SetIconSize(size)
     self.iconSize = size
 end
 
-function lls.List:SetShowTrait(showTrait)
+function List:SetShowTrait(showTrait)
     self.showTrait = showTrait
 end
 
-function lls.List:SetSorted(sorted)
+function List:SetSorted(sorted)
     self.sorted = sorted
 end
 
-function lls.List:SetSortedByQuality(sortedByQuality)
+function List:SetSortedByQuality(sortedByQuality)
     self.sortedByQuality = sortedByQuality
 end
 
-function lls.List:SetSuffix(suffix)
+function List:SetSuffix(suffix)
     self.suffix = suffix
 end
 
-function lls.List:UseLibChatMessage(chat)
+function List:UseLibChatMessage(chat)
     self.chat = chat
 end
 
@@ -250,11 +263,11 @@ function addQuantity(list, keys, key, quantity, combineDuplicates)
         if combineDuplicates then
             list[key][1] = list[key][1] + quantity
         else
-            table.insert(list[key], quantity)
+            tableInsert(list[key], quantity)
         end
     else
         list[key] = { [1] = quantity }
-        table.insert(keys, key)
+        tableInsert(keys, key)
     end
 end
 
@@ -266,7 +279,7 @@ function appendText(text, currentText, maxLength, lines, delimiter, prefix, icon
         stringLength = stringLength - iconStringLength + 2 
     end
     if stringLength > maxLength then
-        table.insert(lines, currentText)
+        tableInsert(lines, currentText)
         currentText = ""
     elseif currentTextLength > ZoUTF8StringLength(prefix) then
         currentText = currentText .. delimiter
@@ -305,14 +318,14 @@ DEFAULTS = {
     hideSingularQuantities = false,
     enabled = true,
     linkStyle = LINK_STYLE_DEFAULT,
-    minQuality = ITEM_QUALITY_MIN_VALUE or ITEM_FUNCTIONAL_QUALITY_MIN_VALUE,
+    minQuality = ITEM_FUNCTIONAL_QUALITY_MIN_VALUE,
     prefix = "",
     showIcon = false,
     iconSize = 90,
     showTrait = false,
     sorted = false,
     sortedByQuality = false,
-    suffix = ""
+    suffix = "",
 }
 
 local function getIcons(self, savedVarChildTable, defaults)
@@ -493,16 +506,16 @@ function mergeTables(table1, table2)
 end
 
 function sortByCurrencyName(currencyType1, currencyType2)
-    return zo_strformat(GetCurrencyName(currencyType1)) < zo_strformat(GetCurrencyName(currencyType2))
+    return GetCurrencyName(currencyType1) < GetCurrencyName(currencyType2)
 end
 
 function sortByItemName(itemLink1, itemLink2)
-    return zo_strformat(GetItemLinkName(itemLink1)) < zo_strformat(GetItemLinkName(itemLink2))
+    return ZO_CachedStrFormat(SI_LINK_FORMAT_ITEM_NAME, GetItemLinkName(itemLink1)) < ZO_CachedStrFormat(SI_LINK_FORMAT_ITEM_NAME, GetItemLinkName(itemLink2))
 end
 
 function sortByQuality(itemLink1, itemLink2)
-    local quality1 = GetItemLinkQuality(itemLink1)
-    local quality2 = GetItemLinkQuality(itemLink2)
+    local quality1 = GetItemLinkFunctionalQuality(itemLink1)
+    local quality2 = GetItemLinkFunctionalQuality(itemLink2)
     if quality1 == quality2 then
         return sortByItemName(itemLink1, itemLink2)
     else
@@ -512,9 +525,9 @@ end
 
 qualityChoices = {}
 qualityChoicesValues = {}
-for quality = ITEM_QUALITY_MIN_VALUE or ITEM_FUNCTIONAL_QUALITY_MIN_VALUE, ITEM_QUALITY_MAX_VALUE or ITEM_FUNCTIONAL_QUALITY_MAX_VALUE do
+for quality = ITEM_FUNCTIONAL_QUALITY_MIN_VALUE, ITEM_FUNCTIONAL_QUALITY_MAX_VALUE do
     local qualityColor = GetItemQualityColor(quality)
     local qualityString = qualityColor:Colorize(GetString("SI_ITEMQUALITY", quality))
-    table.insert(qualityChoicesValues, quality)
-    table.insert(qualityChoices, qualityString)
+    tableInsert(qualityChoicesValues, quality)
+    tableInsert(qualityChoices, qualityString)
 end

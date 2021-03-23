@@ -189,19 +189,22 @@ function lls.List:Print()
 
     for _, currencyType in ipairs(self.currencyKeys) do
         quantities = self.currencyList[currencyType]
-        for _, quantity in ipairs(quantities) do
-            local moneyString = GetCurrencyName(currencyType, IsCountSingularForm(quantity))
-            countString = quantity > 0 and ZO_CachedStrFormat(GetString(SI_HOOK_POINT_STORE_REPAIR_KIT_COUNT), quantity) or tostring(quantity)
-            moneyString = stringFormat("%s %s", moneyString, countString)
-            iconStringLength = 0
-            if self:GetOption('showIcon') then
-                local currencyIcon = ZO_Currency_GetPlatformFormattedCurrencyIcon(currencyType)
-                if not self.chat.isDefault then
-                    iconStringLength = zo_strlen(currencyIcon)
+        -- fix race condition for when multiple threads call Print at the same time
+        if quantities then
+            for _, quantity in ipairs(quantities) do
+                local moneyString = GetCurrencyName(currencyType, IsCountSingularForm(quantity))
+                countString = quantity > 0 and ZO_CachedStrFormat(GetString(SI_HOOK_POINT_STORE_REPAIR_KIT_COUNT), quantity) or tostring(quantity)
+                moneyString = stringFormat("%s %s", moneyString, countString)
+                iconStringLength = 0
+                if self:GetOption('showIcon') then
+                    local currencyIcon = ZO_Currency_GetPlatformFormattedCurrencyIcon(currencyType)
+                    if not self.chat.isDefault then
+                        iconStringLength = zo_strlen(currencyIcon)
+                    end
+                    moneyString = currencyIcon .. moneyString
                 end
-                moneyString = currencyIcon .. moneyString
+                summary = appendText(moneyString, summary, maxLength, lines, self:GetOption('delimiter'), self.prefix, iconStringLength)
             end
-            summary = appendText(moneyString, summary, maxLength, lines, self:GetOption('delimiter'), self.prefix, iconStringLength)
         end
     end
 

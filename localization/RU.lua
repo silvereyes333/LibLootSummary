@@ -31,6 +31,8 @@ local strings = {
     ["SI_LLS_DELIMITER_TOOLTIP"]               = "Выберите какие символы будут разделять предметы в отчете. \"\\n\" значит, что каждый предмет будет отображаться на отдельной строке. ",
     ["SI_LLS_LINK_STYLE"]                      = "Стиль ссылки",
     ["SI_LLS_LINK_STYLE_TOOLTIP"]              = "Выберите как будут отображаться сслыки.",
+    ["SI_LLS_SHOW_COUNTER"]                    = "Показать количества <<1>>",
+    ["SI_LLS_SHOW_COUNTER_TOOLTIP"]            = "Показать количество <<1>> в конце отчете.",
 }
 
 for stringId, value in pairs(strings) do

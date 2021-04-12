@@ -35,9 +35,16 @@ local lls = LibLootSummary()
 -- summed and listed once in the summary.
 lls:SetCombineDuplicates(false)
 
+-- Accepts a singular noun describing the increment displayed when lls:SetShowCounter() 
+-- is set to true.
+lls:SetCounterText("message")
+
 -- delimiter
 -- Use comma delimiters between items in the summary, instead of the default single space
 lls:SetDelimiter(", ")
+
+-- endText
+-- Text that gets appended once at the end of the entire summary if the summary is not empty.
 
 -- hideSingularQuantities
 -- Only print quantity multiplier text (e.g. x20) greater than one to chat
@@ -50,6 +57,13 @@ lls:SetLinkStyle(LINK_STYLE_BRACKETS)
 -- minQuality
 -- Filter summary to only purple or gold items
 lls:SetMinQuality(ITEM_QUALITY_ARCANE)
+
+-- showCounter
+-- When used in conjunction with lls:SetCounterText("text") and lls:IncrementCounter(),
+-- causes a count of how many increments were called while building the loot summary.
+-- Example: After Postmaster Mail loots 10 messages with attachments, the resulting 
+-- summary would print " (10 messages)" after the summary.
+lls:SetShowCounter(true)
 
 -- showIcon
 -- Display item icons to the left of item names in summary
@@ -99,8 +113,14 @@ lls:AddItem(bagId, slotIndex, quantity)
 -- Add 200x Ancestor Silk
 lls:AddItemLink("|H1:item:64504:1:1:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0|h|h", 200)
 
+-- Mark that both of the above items were added during a single loot event.
+lls:IncrementCounter()
+
 -- Add 1x Aetherial Dust
 lls:AddItemId(115026, 1)
+
+-- Mark that the Aetherial Dust was looted in a separate loot event
+lls:IncrementCounter()
 
 -- Output the entire summary to chat
 lls:Print()

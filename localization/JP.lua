@@ -34,6 +34,9 @@ local strings = {
     ["SI_LLS_LINK_STYLE"]                      = "リンクの外観",
     ["SI_LLS_LINK_STYLE_TOOLTIP"]              = "要約のリンクの外観を選択します。",
     ["SI_LLS_QUOTES"]                          = GetString(SI_SAVING_EDIT_BOX_QUOTES),
+    ["SI_LLS_SHOW_COUNTER"]                    = "<<1>>の数を表示する",
+    ["SI_LLS_SHOW_COUNTER_TOOLTIP"]            = "要約の最後に<<1>>の数が表示されます。",
+    ["SI_LLS_COUNTER_FORMAT_SINGLE"]           = "(<<1>><<2>>)",
 }
 
 for stringId, value in pairs(strings) do

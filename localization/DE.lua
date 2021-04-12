@@ -33,6 +33,8 @@ local strings = {
     ["SI_LLS_DELIMITER_TOOLTIP"]               = "Wählt ein Trennzeichen, welche Eure Gegenstände untereinander abtrennt. \"\\n\" bedeutet, dass alle Einträge in einer neuen Zeile angezeigt werden.",
     ["SI_LLS_LINK_STYLE"]                      = "Darstellung Links",
     ["SI_LLS_LINK_STYLE_TOOLTIP"]              = "Wählt die Darstellung von Links aus, wie diese in der Zusammenfassung angezeigt werden sollen.",
+    ["SI_LLS_SHOW_COUNTER"]                    = "Anzahl der <<1>>",
+    ["SI_LLS_SHOW_COUNTER_TOOLTIP"]            = "Zeigt eine Anzahl von <<1>> am Ende der Zusammenfassung an.",
 }
 
 for stringId, value in pairs(strings) do

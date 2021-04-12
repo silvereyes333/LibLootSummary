@@ -3,12 +3,13 @@ local lls = LibLootSummary
 local List = ZO_Object:Subclass()
 lls.List = List
 
-local addQuantity, appendText, coalesce, defaultChat, getChildTable, mergeTables, sortByCurrencyName, sortByItemName, sortByQuality, isSetItemNotCollected
+local addQuantity, appendText, coalesce, defaultChat, getChildTable, mergeTables, sortByCurrencyName, sortByItemName, sortByQuality, isSetItemNotCollected, formatCount, getPlural
 local qualityChoices, qualityChoicesValues, delimiterChoices, delimiterChoicesValues
 local generateLam2EnabledOption, generateLam2QualityOption, generateLam2IconsOption, generateLam2CollectionOption, generateLam2IconSizeOption, generateLam2TraitsOption,
-      generateLam2HideSingularOption, generateLam2CombineDuplicatesOption, generateLam2SortOption, generateLam2DelimiterOption, generateLam2LinkStyleOption
+      generateLam2HideSingularOption, generateLam2CombineDuplicatesOption, generateLam2SortOption, generateLam2DelimiterOption, generateLam2LinkStyleOption,
+      generateLam2CounterOption
 local GetItemLinkFunctionalQuality, ZO_CachedStrFormat, GetCurrencyName = GetItemLinkFunctionalQuality, ZO_CachedStrFormat, GetCurrencyName
-local zo_strgsub, zo_strlen, zo_min, zo_strformat = zo_strgsub, zo_strlen, zo_min, zo_strformat
+local zo_strsub, zo_strgsub, zo_strlen, zo_min, zo_strformat = zo_strsub, zo_strgsub, zo_strlen, zo_min, zo_strformat
 local tostring, pairs, ipairs = tostring, pairs, ipairs
 local tableInsert, stringFormat, tableSort, stringFind = table.insert, string.format, table.sort, string.find
 local linkFormat = "|H%s:item:%s:1:1:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0|h|h"
@@ -37,6 +38,7 @@ function lls.List:Initialize(params)
     
     self.options = params
     self.defaults = {}
+    self.counter = 0
 end
 
 function lls.List:AddCurrency(currencyType, quantity)
@@ -89,7 +91,8 @@ function lls.List:GenerateLam2ItemOptions(addonName, options, defaults, ...)
         generateLam2CombineDuplicatesOption(self),
         generateLam2SortOption(self),
         generateLam2DelimiterOption(self),
-        generateLam2LinkStyleOption(self)
+        generateLam2LinkStyleOption(self),
+        generateLam2CounterOption(self)
 end
 
 function lls.List:GenerateLam2LootOptions(addonName, options, defaults, ...)
@@ -104,7 +107,8 @@ function lls.List:GenerateLam2LootOptions(addonName, options, defaults, ...)
         generateLam2CombineDuplicatesOption(self),
         generateLam2SortOption(self),
         generateLam2DelimiterOption(self),
-        generateLam2LinkStyleOption(self)
+        generateLam2LinkStyleOption(self),
+        generateLam2CounterOption(self)
 end
 
 function lls.List:GetOption(key)
@@ -117,6 +121,10 @@ function lls.List:GetOption(key)
     if self.defaults then
         return self.defaults[key]
     end
+end
+
+function lls.List:IncrementCounter()
+    self.counter = self.counter + 1
 end
 
 --[[ Outputs a verbose summary of all loot and currency ]]
@@ -142,9 +150,6 @@ function lls.List:Print()
         quality = GetItemLinkFunctionalQuality(itemLink)
         if quality >= self:GetOption('minQuality') then
             quantities = self.itemList[itemLink]
-            if not quantities then
-                self.chat:Print(itemLink)
-            end
             if quantities then
                 for _, quantity in ipairs(quantities) do
                     local itemString = itemLink
@@ -164,10 +169,9 @@ function lls.List:Print()
                         end
                     end
                     if not self:GetOption('hideSingularQuantities') or quantity > 1 then
-                        countString = ZO_CachedStrFormat(GetString(SI_HOOK_POINT_STORE_REPAIR_KIT_COUNT), quantity)
+                        countString = ZO_CachedStrFormat(GetString(SI_HOOK_POINT_STORE_REPAIR_KIT_COUNT), ZO_CommaDelimitNumber(quantity))
                         itemString = stringFormat("%s %s", itemString, countString)
                     end
-                    local iconStringLength = 0
                     if self:GetOption('showIcon') then
                         local iconSize = stringFormat("%s%%", tostring(self:GetOption('iconSize')))
                         local iconString = zo_iconFormat(GetItemLinkIcon(itemLink), iconSize, iconSize)
@@ -178,6 +182,8 @@ function lls.List:Print()
                     end
                     summary = appendText(itemString, summary, maxLength, lines, self:GetOption('delimiter'), self.prefix, iconStringLength)
                 end
+            else
+                d("LibLootSummary has somehow lost track of how many " .. tostring(itemLink) .. " should be printed.  Please report this bug on ESOUI.com.")
             end
         end
     end
@@ -193,7 +199,7 @@ function lls.List:Print()
         if quantities then
             for _, quantity in ipairs(quantities) do
                 local moneyString = GetCurrencyName(currencyType, IsCountSingularForm(quantity))
-                countString = quantity > 0 and ZO_CachedStrFormat(GetString(SI_HOOK_POINT_STORE_REPAIR_KIT_COUNT), quantity) or tostring(quantity)
+                countString = quantity > 0 and ZO_CachedStrFormat(GetString(SI_HOOK_POINT_STORE_REPAIR_KIT_COUNT), ZO_CommaDelimitNumber(quantity)) or tostring(quantity)
                 moneyString = stringFormat("%s %s", moneyString, countString)
                 iconStringLength = 0
                 if self:GetOption('showIcon') then
@@ -205,6 +211,16 @@ function lls.List:Print()
                 end
                 summary = appendText(moneyString, summary, maxLength, lines, self:GetOption('delimiter'), self.prefix, iconStringLength)
             end
+        else
+            d("LibLootSummary has somehow lost track of how many " .. GetCurrencyName(currencyType, false) .. " should be printed.  Please report this bug on ESOUI.com.")
+        end
+    end
+    
+    -- Add counter text, if the summary is not empty and the counter is > 0
+    if self:GetOption('showCounter') and self.counter > 0 then
+        if self.counterText and self.counterText ~= "" and (#lines > 0 or summary ~= "") then
+            local text = formatCount(self.counterText, self.counter)
+            summary = appendText(text, summary, maxLength, lines, self:GetOption('delimiter'), self.prefix, iconStringLength)
         end
     end
 
@@ -222,16 +238,25 @@ function lls.List:Print()
 end
 
 function lls.List:Reset()
+    if self.itemList then
+        ZO_ClearTable(self.itemList)
+    end
     self.itemList = {}
     self.itemKeys = {}
+    if self.currencyList then
+        ZO_ClearTable(self.currencyList)
+    end
     self.currencyList = {}
     self.currencyKeys = {}
-    setmetatable(self.itemList, { __mode = "v" })
-    setmetatable(self.currencyList, { __mode = "v" })
+    self.counter = 0
 end
 
 function lls.List:SetCombineDuplicates(combineDuplicates)
     self:SetOption('combineDuplicates', combineDuplicates)
+end
+
+function lls.List:SetCounterText(counterText)
+    self.counterText = counterText
 end
 
 function lls.List:SetDelimiter(delimiter)
@@ -321,6 +346,10 @@ end
 
 function lls.List:SetPrefix(prefix)
     self.prefix = prefix
+end
+
+function lls.List:SetShowCounter(showCounter)
+    self:SetOption('showCounter', showCounter)
 end
 
 function lls.List:SetShowIcon(showIcon)
@@ -424,6 +453,7 @@ OPTIONS_DEFAULTS = {
     linkStyle = LINK_STYLE_DEFAULT,
     sorted = false,
     sortedByQuality = false,
+    showCounter = false,
 }
 
 CHAT_DEFAULTS = {
@@ -436,6 +466,23 @@ RENAMED_OPTIONS = {
     traits = 'showTrait',
     icons = 'showIcon',
 }
+
+function formatCount(countText, count)
+    -- The <<1*2>> format only prints a number when there are more than one
+    if count > 1 then
+        return ZO_CachedStrFormat(SI_LLS_COUNTER_FORMAT_PLURAL, count, countText)
+    end
+    -- Fall back on an explicit number and singular word
+    return ZO_CachedStrFormat(SI_LLS_COUNTER_FORMAT_SINGLE, count, countText)
+end
+
+local numberDelimLength = zo_strlen(GetString(SI_LLS_COUNTER_FORMAT_SINGLE)) - 12
+function getPlural(countText)
+    -- <<m:1>> seems to be buggy and doesn't properly pluralize words, but <<1*2>> does.
+    local pluralNumberAndWord = ZO_CachedStrFormat(SI_LLS_PLURAL, 2, countText)
+    local plural = zo_strsub(pluralNumberAndWord, 2 + numberDelimLength)
+    return plural
+end
 
 function generateLam2EnabledOption(self, addonName, name, tooltip)
     return 
@@ -633,6 +680,27 @@ function generateLam2LinkStyleOption(self)
             getFunc = function() return self:GetOption('linkStyle') end,
             setFunc = function(value) self:SetLinkStyle(value) end,
             default = self.defaults.linkStyle,
+            disabled = function() return not self:IsEnabled() end,
+        }
+end
+function generateLam2CounterOption(self)
+    if self.counterText == nil or self.counterText == '' then
+        return
+    end
+    local language = GetCVar("Language.2")
+    local pluralCounterText = getPlural(self.counterText)
+    local counterTitleText = language == "en" and zo_strformat("<<t:1>>", pluralCounterText) or pluralCounterText
+    local name = zo_strformat(GetString(SI_LLS_SHOW_COUNTER), counterTitleText)
+    local tooltip = zo_strformat(GetString(SI_LLS_SHOW_COUNTER_TOOLTIP), pluralCounterText)
+    return 
+        -- Show Counter
+        {
+            type = "checkbox",
+            name = name,
+            tooltip = tooltip,
+            getFunc = function() return self:GetOption('showCounter') end,
+            setFunc = function(value) self:SetShowCounter(value) end,
+            default = self.defaults.showCounter,
             disabled = function() return not self:IsEnabled() end,
         }
 end

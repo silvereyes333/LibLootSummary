@@ -31,7 +31,12 @@ LLS_STRINGS = {
     ["SI_LLS_SORT_ORDER_TOOLTIP"]              = "Choose how the summary will be sorted",
     ["SI_LLS_DELIMITER"]                       = "List Delimiter",
     ["SI_LLS_DELIMITER_TOOLTIP"]               = "Choose which characters will separate summary entries. \"\\n\" signifies that all list entries appear on separate lines.",
-    ["SI_LLS_LINK_STYLE"]                      = "Link style",
+    ["SI_LLS_LINK_STYLE"]                      = "Link Style",
     ["SI_LLS_LINK_STYLE_TOOLTIP"]              = "Choose how links will appear.",
     ["SI_LLS_QUOTES"]                          = "\"<<X:1>>\"",
+    ["SI_LLS_SHOW_COUNTER"]                    = "<<1>> Count",
+    ["SI_LLS_SHOW_COUNTER_TOOLTIP"]            = "Displays a count of <<1>> at the end of the summary.",
+    ["SI_LLS_COUNTER_FORMAT_SINGLE"]           = "(<<1>> <<2>>)",
+    ["SI_LLS_COUNTER_FORMAT_PLURAL"]           = "(<<1*2>>)",
+    ["SI_LLS_PLURAL"]                          = "<<1*2>>",
 }
